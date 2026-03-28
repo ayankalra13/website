@@ -280,6 +280,27 @@
       border-bottom: 1px solid var(--border);
     }
     .division-editor-row:last-child { border-bottom: none; }
+    .division-editor-row label.div-meta-label {
+      flex: 0 1 auto;
+      min-width: 5.5rem;
+    }
+    .division-editor-row label.div-meta-label input {
+      min-width: 4.5rem;
+      width: 4.75rem;
+    }
+    .king-table-badge {
+      margin-left: 0.35rem;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      vertical-align: middle;
+      background: linear-gradient(135deg, rgba(30, 58, 95, 0.14), rgba(30, 58, 95, 0.06));
+      color: var(--accent);
+      border: 1px solid rgba(30, 58, 95, 0.22);
+    }
     .btn-ghost {
       padding: 0.45rem 0.75rem;
       font-size: 0.68rem;
@@ -745,13 +766,10 @@
     <section id="panel-setup" class="panel active" role="tabpanel">
       <div class="card">
         <h2>Tournament structure</h2>
-        <p class="player-meta" style="margin-top:-0.5rem;margin-bottom:1rem">Define divisions and schedule before play. Locked after you start the event.</p>
+        <p class="player-meta" style="margin-top:-0.5rem;margin-bottom:1rem">Define divisions and schedule before play. Each division can use a different number of rounds and a different table count. Locked after you start the event.</p>
         <div class="config-grid">
           <label>Event name (optional)
             <input type="text" id="event-name" placeholder="e.g. Regional Championship" maxlength="120" autocomplete="off" />
-          </label>
-          <label>Number of rounds (1–12)
-            <input type="number" id="total-rounds-input" min="1" max="12" step="1" value="4" />
           </label>
         </div>
         <div id="divisions-editor"></div>
@@ -787,6 +805,9 @@
           <button type="button" class="btn btn-secondary" id="btn-import-json">Import JSON</button>
           <input type="file" id="import-file" accept="application/json,.json" hidden />
         </div>
+        <p class="player-meta" id="autosave-note" style="margin-top:0.85rem">
+          Auto-saved in this browser (survives refresh and most crashes). Use <strong>Export JSON</strong> for a file backup before clearing site data or switching computers.
+        </p>
         <p class="player-meta" id="tourney-status" style="margin-top:1rem"></p>
       </div>
 
@@ -858,25 +879,26 @@
     const a = newDivisionId();
     const b = newDivisionId();
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       eventName: "",
       totalRounds: 4,
       divisionOrder: [a, b],
       divisionsMeta: {
-        [a]: { id: a, name: "Open" },
-        [b]: { id: b, name: "Division B" }
+        [a]: { id: a, name: "Open", roundCount: 4, tableCount: null },
+        [b]: { id: b, name: "Division B", roundCount: 4, tableCount: null }
       },
       players: { [a]: [], [b]: [] },
       rounds: { [a]: [], [b]: [] },
       started: false,
       currentRound: 0,
-      viewRound: null
+      viewRound: null,
+      ui: {}
     };
   }
 
   function migrateLegacyState(s) {
     if (!s || typeof s !== "object") return defaultState();
-    if (s.schemaVersion === 2 && Array.isArray(s.divisionOrder) && s.divisionOrder.length > 0) return s;
+    if (s.schemaVersion >= 2 && Array.isArray(s.divisionOrder) && s.divisionOrder.length > 0) return s;
     const pl = s.players || {};
     const rd = s.rounds || {};
     if (pl.junior !== undefined || pl.senior !== undefined) {
@@ -916,7 +938,34 @@
   }
 
   function getTotalRounds() {
-    return Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
+    return getMaxRoundsAcrossDivisions();
+  }
+
+  function getDivisionRoundCount(div) {
+    const m = state.divisionsMeta && state.divisionsMeta[div];
+    const raw =
+      m && m.roundCount != null && m.roundCount !== ""
+        ? parseInt(m.roundCount, 10)
+        : parseInt(state.totalRounds, 10) || 4;
+    return Math.max(1, Math.min(12, isNaN(raw) ? 4 : raw));
+  }
+
+  function getMaxRoundsAcrossDivisions() {
+    const ids = divisionIds();
+    if (!ids.length) return Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
+    return Math.max(...ids.map((d) => getDivisionRoundCount(d)));
+  }
+
+  function getDivisionTableCount(div) {
+    const m = state.divisionsMeta && state.divisionsMeta[div];
+    if (!m || m.tableCount == null || m.tableCount === "") return null;
+    const t = parseInt(m.tableCount, 10);
+    if (isNaN(t) || t < 1) return null;
+    return Math.min(99, t);
+  }
+
+  function boardsNeededForActivePlayers(nActive) {
+    return Math.max(1, Math.ceil(Math.max(0, nActive) / 2));
   }
 
   function getDivisionName(id) {
@@ -926,7 +975,10 @@
 
   function ensureDivisionKeys() {
     divisionIds().forEach((id) => {
-      if (!state.divisionsMeta[id]) state.divisionsMeta[id] = { id, name: id };
+      if (!state.divisionsMeta[id]) state.divisionsMeta[id] = { id, name: id, roundCount: 4, tableCount: null };
+      const meta = state.divisionsMeta[id];
+      if (meta.roundCount == null) meta.roundCount = Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
+      if (meta.tableCount === undefined) meta.tableCount = null;
       if (!Array.isArray(state.players[id])) state.players[id] = [];
       if (!Array.isArray(state.rounds[id])) state.rounds[id] = [];
     });
@@ -945,11 +997,16 @@
     if (!s.divisionsMeta) s.divisionsMeta = {};
     if (!s.players) s.players = {};
     if (!s.rounds) s.rounds = {};
-    s.schemaVersion = 2;
+    s.schemaVersion = 3;
     if (s.eventName == null) s.eventName = "";
     s.totalRounds = Math.max(1, Math.min(12, parseInt(s.totalRounds, 10) || 4));
     (s.divisionOrder || []).forEach((id) => {
       if (!s.divisionsMeta[id]) s.divisionsMeta[id] = { id, name: id };
+      const dm = s.divisionsMeta[id];
+      if (dm.roundCount == null || dm.roundCount === "")
+        dm.roundCount = Math.max(1, Math.min(12, parseInt(s.totalRounds, 10) || 4));
+      else dm.roundCount = Math.max(1, Math.min(12, parseInt(dm.roundCount, 10) || 4));
+      if (dm.tableCount === undefined) dm.tableCount = null;
       if (!Array.isArray(s.players[id])) s.players[id] = [];
       if (!Array.isArray(s.rounds[id])) s.rounds[id] = [];
       s.players[id].forEach((p) => {
@@ -958,6 +1015,7 @@
       });
     });
     if (s.viewRound == null && s.started) s.viewRound = s.currentRound;
+    if (!s.ui || typeof s.ui !== "object") s.ui = {};
   }
 
   function loadState() {
@@ -979,6 +1037,36 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {}
   }
+
+  function debounce(fn, ms) {
+    let t = null;
+    return function debounced() {
+      clearTimeout(t);
+      const args = arguments;
+      t = setTimeout(() => fn.apply(null, args), ms);
+    };
+  }
+
+  const debouncedSaveState = debounce(saveState, 400);
+
+  function hydrateUiPrefs() {
+    const ids = divisionIds();
+    if (!ids.length) return;
+    const u = state.ui || {};
+    if (u.setupDiv && ids.includes(u.setupDiv)) setupDiv = u.setupDiv;
+    if (u.pairDiv && ids.includes(u.pairDiv)) pairDiv = u.pairDiv;
+    if (u.lbDiv && ids.includes(u.lbDiv)) lbDiv = u.lbDiv;
+    if (u.histDiv && ids.includes(u.histDiv)) histDiv = u.histDiv;
+  }
+
+  hydrateUiPrefs();
+
+  window.addEventListener("beforeunload", () => {
+    saveState();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveState();
+  });
 
   function toast(msg) {
     const el = document.getElementById("toast");
@@ -1147,22 +1235,80 @@
     return matches;
   }
 
+  function standingsRankIndexMap(div) {
+    const players = state.players[div].filter((p) => !p.withdrawn);
+    const stats = computeStats(div);
+    const sorted = players.slice().sort((a, b) => {
+      const sa = stats[a.id] || { wins: 0, spread: 0 };
+      const sb = stats[b.id] || { wins: 0, spread: 0 };
+      const wa = sa.wins - sa.losses;
+      const wb = sb.wins - sb.losses;
+      if (wb !== wa) return wb - wa;
+      if ((sb.spread || 0) !== (sa.spread || 0)) return (sb.spread || 0) - (sa.spread || 0);
+      return (b.rating || 0) - (a.rating || 0);
+    });
+    const map = {};
+    sorted.forEach((p, i) => {
+      map[p.id] = i;
+    });
+    return map;
+  }
+
+  function assignBoardsKingOfCourt(div, matches) {
+    const rankMap = standingsRankIndexMap(div);
+    const decorated = matches.map((m) => {
+      if (m.bye) {
+        const idx = rankMap[m.p1] != null ? rankMap[m.p1] : 999;
+        return { m, sortKey: idx, bye: true };
+      }
+      const i1 = rankMap[m.p1] != null ? rankMap[m.p1] : 999;
+      const i2 = rankMap[m.p2] != null ? rankMap[m.p2] : 999;
+      return { m, sortKey: i1 + i2, bye: false };
+    });
+    decorated.sort((a, b) => {
+      if (a.bye !== b.bye) return a.bye ? 1 : -1;
+      if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey;
+      const ida = a.m.p1 || "";
+      const idb = b.m.p1 || "";
+      return String(ida).localeCompare(String(idb));
+    });
+    const n = decorated.length;
+    const cap = getDivisionTableCount(div);
+    if (cap != null && cap < n) {
+      toast(
+        getDivisionName(div) +
+          ": this round has " +
+          n +
+          " games — using table numbers 1–" +
+          n +
+          ". Set Tables to at least " +
+          n +
+          " if that matches your room layout."
+      );
+    }
+    decorated.forEach((d, i) => {
+      d.m.board = i + 1;
+    });
+  }
+
   function buildRound(div, roundIndex) {
     const players = state.players[div].filter((p) => !p.withdrawn);
     const raw =
       roundIndex === 0 ? pairRandom(players) : swissPairings(div, players);
+    const matches = raw.map((m) => ({
+      board: 0,
+      p1: m.p1,
+      p2: m.p2,
+      bye: m.bye,
+      score1: null,
+      score2: null,
+      complete: !!m.bye,
+      byeSpread: m.bye ? 50 : null
+    }));
+    assignBoardsKingOfCourt(div, matches);
     return {
       index: roundIndex,
-      matches: raw.map((m, bi) => ({
-        board: bi + 1,
-        p1: m.p1,
-        p2: m.p2,
-        bye: m.bye,
-        score1: null,
-        score2: null,
-        complete: !!m.bye,
-        byeSpread: m.bye ? 50 : null
-      }))
+      matches
     };
   }
 
@@ -1210,11 +1356,38 @@
   function advanceRoundCore() {
     const next = state.currentRound + 1;
     for (const d of divisionIds()) {
+      if (next >= getDivisionRoundCount(d)) continue;
       state.rounds[d].push(buildRound(d, next));
       appendWithdrawnForfeitMatches(d, next);
     }
     state.currentRound = next;
     state.viewRound = next;
+  }
+
+  function maxRoundIndexAcrossDivisions() {
+    const ids = divisionIds();
+    if (!ids.length) return 0;
+    return Math.max(...ids.map((d) => getDivisionRoundCount(d) - 1), 0);
+  }
+
+  function validateSchedulesForStart() {
+    for (const d of divisionIds()) {
+      const active = state.players[d].filter((p) => !p.withdrawn).length;
+      const need = boardsNeededForActivePlayers(active);
+      const tc = getDivisionTableCount(d);
+      if (tc != null && tc < need) {
+        toast(
+          getDivisionName(d) +
+            " needs at least " +
+            need +
+            " tables for round 1 (you set " +
+            tc +
+            "). Use Auto tables or raise the number."
+        );
+        return false;
+      }
+    }
+    return true;
   }
 
   function startTournament() {
@@ -1224,6 +1397,7 @@
         return;
       }
     }
+    if (!validateSchedulesForStart()) return;
     beginTournamentCore();
     saveState();
     toast("Tournament started — Round 1 pairings ready.");
@@ -1232,8 +1406,10 @@
   }
 
   function currentRoundComplete(div) {
-    const r = state.rounds[div][state.currentRound];
-    if (!r) return false;
+    const cr = state.currentRound;
+    if (cr >= getDivisionRoundCount(div)) return true;
+    const r = state.rounds[div][cr];
+    if (!r) return true;
     return r.matches.every((m) => m.complete);
   }
 
@@ -1247,7 +1423,7 @@
       toast("Enter and lock all scores for this round first.");
       return;
     }
-    if (state.currentRound >= getTotalRounds() - 1) {
+    if (state.currentRound >= maxRoundIndexAcrossDivisions()) {
       toast("Final round complete.");
       return;
     }
@@ -1304,10 +1480,40 @@
     if (divisionDelegatesBound) return;
     divisionDelegatesBound = true;
     const map = [
-      ["setup-division-toggle", (id) => { setupDiv = id; }],
-      ["pair-division-toggle", (id) => { pairDiv = id; }],
-      ["lb-division-toggle", (id) => { lbDiv = id; }],
-      ["hist-division-toggle", (id) => { histDiv = id; renderScorecardSelect(); renderScorecardDetail(); }]
+      [
+        "setup-division-toggle",
+        (id) => {
+          setupDiv = id;
+          state.ui = state.ui || {};
+          state.ui.setupDiv = id;
+        }
+      ],
+      [
+        "pair-division-toggle",
+        (id) => {
+          pairDiv = id;
+          state.ui = state.ui || {};
+          state.ui.pairDiv = id;
+        }
+      ],
+      [
+        "lb-division-toggle",
+        (id) => {
+          lbDiv = id;
+          state.ui = state.ui || {};
+          state.ui.lbDiv = id;
+        }
+      ],
+      [
+        "hist-division-toggle",
+        (id) => {
+          histDiv = id;
+          state.ui = state.ui || {};
+          state.ui.histDiv = id;
+          renderScorecardSelect();
+          renderScorecardDetail();
+        }
+      ]
     ];
     map.forEach(([cid, setter]) => {
       const el = document.getElementById(cid);
@@ -1353,6 +1559,35 @@
     structureEditorBound = true;
     const ed = document.getElementById("divisions-editor");
     ed.addEventListener("change", (e) => {
+      const roundsInp = e.target.closest(".div-rounds-input");
+      if (roundsInp && !state.started) {
+        const id = roundsInp.dataset.id;
+        let n = parseInt(roundsInp.value, 10);
+        n = Math.max(1, Math.min(12, isNaN(n) ? 4 : n));
+        roundsInp.value = n;
+        if (state.divisionsMeta[id]) {
+          state.divisionsMeta[id].roundCount = n;
+          saveState();
+          updatePairingRulesBlurb();
+          renderHeaderChrome();
+        }
+        return;
+      }
+      const tablesInp = e.target.closest(".div-tables-input");
+      if (tablesInp && !state.started) {
+        const id = tablesInp.dataset.id;
+        const raw = String(tablesInp.value || "").trim();
+        if (raw === "") {
+          state.divisionsMeta[id].tableCount = null;
+        } else {
+          let t = parseInt(raw, 10);
+          t = Math.max(1, Math.min(99, isNaN(t) ? 1 : t));
+          state.divisionsMeta[id].tableCount = t;
+          tablesInp.value = t;
+        }
+        saveState();
+        return;
+      }
       const inp = e.target.closest(".div-name-input");
       if (inp && !state.started) {
         const id = inp.dataset.id;
@@ -1376,24 +1611,16 @@
       renderHeaderChrome();
       saveState();
     });
-    document.getElementById("total-rounds-input").addEventListener("change", () => {
-      if (state.started) return;
-      const n = parseInt(document.getElementById("total-rounds-input").value, 10);
-      state.totalRounds = Math.max(1, Math.min(12, isNaN(n) ? 4 : n));
-      document.getElementById("total-rounds-input").value = state.totalRounds;
-      updatePairingRulesBlurb();
-      saveState();
-    });
   }
 
   function updatePairingRulesBlurb() {
     const el = document.getElementById("pairing-rules-blurb");
     if (!el) return;
-    const tr = getTotalRounds();
+    const hi = getMaxRoundsAcrossDivisions();
     el.textContent =
-      "Round 1 uses random pairings; rounds 2–" +
-      tr +
-      " use Swiss (similar records, no rematches when possible). Odd field sizes receive one bye per division per round.";
+      "Round 1 is random within each division; rounds 2–" +
+      hi +
+      " are Swiss (similar records, no rematches when possible). Each round, Table 1 is the strongest matchup by standings (king of the court). Divisions can use different round counts and table counts; odd fields get one bye per division per round.";
   }
 
   function escapeAttr(s) {
@@ -1412,6 +1639,9 @@
     ed.innerHTML = ids
       .map((id, idx) => {
         const nm = escapeInputAttr(getDivisionName(id));
+        const rc = getDivisionRoundCount(id);
+        const tc = state.divisionsMeta[id].tableCount;
+        const tablesVal = tc == null || tc === "" ? "" : escapeInputAttr(String(tc));
         const rem =
           !locked && ids.length > 1
             ? `<button type="button" class="btn-ghost btn-remove-div" data-id="${escapeAttr(id)}">Remove</button>`
@@ -1420,23 +1650,28 @@
           <label style="flex:1;min-width:160px">Division ${idx + 1}
             <input type="text" class="div-name-input" data-id="${escapeAttr(id)}" value="${nm}" ${locked ? "disabled" : ""} maxlength="80" />
           </label>
+          <label class="div-meta-label">Rounds
+            <input type="number" class="div-rounds-input" data-id="${escapeAttr(id)}" min="1" max="12" step="1" value="${rc}" ${locked ? "disabled" : ""} title="Swiss rounds for this division only" />
+          </label>
+          <label class="div-meta-label">Tables
+            <input type="number" class="div-tables-input" data-id="${escapeAttr(id)}" min="1" max="99" step="1" value="${tablesVal}" ${locked ? "disabled" : ""} title="Leave empty for auto (one table per game). Must be at least the number of games in a round. Table 1 = top matchup." />
+          </label>
           ${rem}
         </div>`;
       })
       .join("");
     document.getElementById("event-name").value = state.eventName || "";
     document.getElementById("event-name").disabled = false;
-    const tri = document.getElementById("total-rounds-input");
-    tri.value = getTotalRounds();
-    tri.disabled = locked;
     document.getElementById("btn-add-division").disabled = locked;
     updatePairingRulesBlurb();
   }
 
   function addDivision() {
     const id = newDivisionId();
+    const templateId = divisionIds()[0];
+    const rc = templateId ? getDivisionRoundCount(templateId) : 4;
     state.divisionOrder.push(id);
-    state.divisionsMeta[id] = { id, name: "New division" };
+    state.divisionsMeta[id] = { id, name: "New division", roundCount: rc, tableCount: null };
     state.players[id] = [];
     state.rounds[id] = [];
     saveState();
@@ -1463,7 +1698,14 @@
     if (state.eventName && state.eventName.trim()) {
       badge.hidden = false;
       badge.textContent = state.eventName.trim();
-      if (tag) tag.textContent = getTotalRounds() + " rounds · Swiss · " + divisionIds().length + " division" + (divisionIds().length === 1 ? "" : "s");
+      if (tag)
+        tag.textContent =
+          "Up to " +
+          getMaxRoundsAcrossDivisions() +
+          " rounds · Swiss · " +
+          divisionIds().length +
+          " division" +
+          (divisionIds().length === 1 ? "" : "s");
     } else {
       badge.hidden = true;
       if (tag) tag.textContent = "Swiss pairings · Round 1 random · Built for club & rated events";
@@ -1687,6 +1929,7 @@
     const ids = (s.divisionOrder || []).slice();
     for (const d of ids) {
       const r = s.rounds[d][cr];
+      if (!r) continue;
       for (const m of r.matches) {
         if (m.bye || m.forfeitLoss) continue;
         const t = m.board * 3 + cr * 11;
@@ -1807,6 +2050,31 @@
       if (!halfWins) throw new Error("tie scores should yield 0.5 wins each");
       out("PASS · tied games · standings use half wins", "pass");
 
+      state = defaultState();
+      const id6 = divisionIds();
+      state.divisionsMeta[id6[0]].roundCount = 4;
+      state.divisionsMeta[id6[1]].roundCount = 3;
+      state.players[id6[0]].push(
+        { id: uid(), name: "Mix A1", rating: 1, withdrawn: false, withdrawnAtRound: null },
+        { id: uid(), name: "Mix A2", rating: 2, withdrawn: false, withdrawnAtRound: null }
+      );
+      state.players[id6[1]].push(
+        { id: uid(), name: "Mix B1", rating: 1, withdrawn: false, withdrawnAtRound: null },
+        { id: uid(), name: "Mix B2", rating: 2, withdrawn: false, withdrawnAtRound: null }
+      );
+      beginTournamentCore();
+      let mixGuard = 0;
+      while (mixGuard++ < 12) {
+        fillAllScoresForCurrentRound(state);
+        if (!allDivisionsRoundComplete()) throw new Error("mixed schedule: incomplete at cr " + state.currentRound);
+        if (state.currentRound >= maxRoundIndexAcrossDivisions()) break;
+        advanceRoundCore();
+      }
+      if (state.rounds[id6[0]].length !== 4) throw new Error("mix: division A should have 4 stored rounds");
+      if (state.rounds[id6[1]].length !== 3) throw new Error("mix: division B should have 3 stored rounds");
+      if (state.currentRound !== 3) throw new Error("mix: expected final cr index 3");
+      out("PASS · 4R vs 3R divisions · one division ends early · advance OK", "pass");
+
       out("All automated design checks passed.", "pass");
     } catch (err) {
       anyFail = true;
@@ -1840,7 +2108,13 @@
       el.textContent = "Tournament not started. Add players and press Start tournament.";
       return;
     }
-    el.textContent = `In progress — viewing round ${(state.viewRound != null ? state.viewRound : state.currentRound) + 1} of ${getTotalRounds()} (active round: ${state.currentRound + 1}).`;
+    const maxR = getMaxRoundsAcrossDivisions();
+    const sched = divisionIds()
+      .map((d) => getDivisionName(d) + " " + getDivisionRoundCount(d) + "R")
+      .join(" · ");
+    el.textContent = `In progress — event schedule: ${sched}. Viewing round ${
+      (state.viewRound != null ? state.viewRound : state.currentRound) + 1
+    } (longest division: ${maxR} rounds). Active scoring round: ${state.currentRound + 1}.`;
   }
 
   function syncRoundSelect() {
@@ -1851,8 +2125,12 @@
       return;
     }
     sel.disabled = false;
-    const fid = divisionIds()[0];
-    const maxR = fid && state.rounds[fid] ? state.rounds[fid].length - 1 : 0;
+    let maxR = 0;
+    divisionIds().forEach((d) => {
+      const len = state.rounds[d] ? state.rounds[d].length : 0;
+      if (len > maxR) maxR = len;
+    });
+    maxR = maxR > 0 ? maxR - 1 : 0;
     for (let i = 0; i <= maxR; i++) {
       const opt = document.createElement("option");
       opt.value = String(i);
@@ -1870,7 +2148,7 @@
     const label = document.getElementById("pairings-round-label");
     document.getElementById("btn-next-round").disabled =
       !state.started ||
-      state.currentRound >= getTotalRounds() - 1 ||
+      state.currentRound >= maxRoundIndexAcrossDivisions() ||
       !allDivisionsRoundComplete();
 
     if (!state.started) {
@@ -1883,28 +2161,41 @@
     const ri = state.viewRound != null ? state.viewRound : state.currentRound;
     const round = state.rounds[div][ri];
     if (!round) {
-      container.innerHTML = '<p class="empty-state">No pairings.</p>';
+      container.innerHTML =
+        '<p class="empty-state">This division has no round ' +
+        (ri + 1) +
+        " — it is scheduled for " +
+        getDivisionRoundCount(div) +
+        " rounds only. Switch division or pick another round.</p>";
+      label.textContent = "No pairings this round";
       return;
     }
 
     const stats = computeStats(div);
     const isActiveRoundView = ri === state.currentRound;
-    label.textContent =
-      isActiveRoundView && !currentRoundComplete(div)
+    const divDoneEarly = ri >= getDivisionRoundCount(div);
+    label.textContent = divDoneEarly
+      ? "Division finished"
+      : isActiveRoundView && !currentRoundComplete(div)
         ? "Scores required"
         : ri < state.currentRound
           ? "Completed round"
           : "Round complete";
 
     container.innerHTML = "";
-    round.matches.forEach((m) => {
+    const sortedMatches = round.matches.slice().sort((a, b) => (a.board || 0) - (b.board || 0));
+    sortedMatches.forEach((m) => {
+      const kingBadge =
+        !m.bye && !m.forfeitLoss && m.board === 1
+          ? '<span class="king-table-badge" title="Top matchup by Swiss standings">King table</span>'
+          : "";
       if (m.forfeitLoss) {
         const wrap = document.createElement("div");
         wrap.className = "match complete";
         const loser = m.loserId ? getPlayer(div, m.loserId) : null;
         const header = document.createElement("div");
         header.className = "match-header";
-        header.innerHTML = `<span class="board-num">Board ${m.board}</span>`;
+        header.innerHTML = `<span class="board-num">Table ${m.board}</span>`;
         const note = document.createElement("p");
         note.className = "bye-tag";
         note.style.margin = "0";
@@ -1927,7 +2218,7 @@
 
       const header = document.createElement("div");
       header.className = "match-header";
-      header.innerHTML = `<span class="board-num">Board ${m.board}</span>`;
+      header.innerHTML = `<span class="board-num">Table ${m.board}${kingBadge}</span>`;
 
       if (m.bye) {
         header.innerHTML += `<span class="bye-tag">Bye — ${p1 ? escapeHtml(p1.name) : ""}${p1 && p1.withdrawn ? ' <span class="wd-tag">(WD)</span>' : ""} receives full win (+50 spread)</span>`;
@@ -2000,6 +2291,19 @@
       inp2.placeholder = "—";
       inp2.value = m.score2 != null ? m.score2 : "";
       inp2.disabled = m.complete;
+
+      function persistScoresFromInputs() {
+        if (m.complete) return;
+        const raw1 = inp1.value.trim();
+        const raw2 = inp2.value.trim();
+        const v1 = raw1 === "" ? null : parseInt(raw1, 10);
+        const v2 = raw2 === "" ? null : parseInt(raw2, 10);
+        m.score1 = raw1 === "" || isNaN(v1) ? null : v1;
+        m.score2 = raw2 === "" || isNaN(v2) ? null : v2;
+        debouncedSaveState();
+      }
+      inp1.addEventListener("input", persistScoresFromInputs);
+      inp2.addEventListener("input", persistScoresFromInputs);
 
       const lockBtn = document.createElement("button");
       lockBtn.type = "button";
@@ -2116,16 +2420,19 @@
     let html = "";
     state.rounds[div].forEach((round, ri) => {
       html += `<div class="history-round"><h3>Round ${ri + 1}</h3>`;
-      round.matches.forEach((m) => {
+      round.matches
+        .slice()
+        .sort((a, b) => (a.board || 0) - (b.board || 0))
+        .forEach((m) => {
         if (m.forfeitLoss) {
           const loser = m.loserId ? getPlayer(div, m.loserId) : null;
-          html += `<div class="scorecard"><strong>Board ${m.board}</strong> — Forfeit loss: ${formatHistoryPlayer(div, loser)} (0–50)</div>`;
+          html += `<div class="scorecard"><strong>Table ${m.board}</strong> — Forfeit loss: ${formatHistoryPlayer(div, loser)} (0–50)</div>`;
           return;
         }
         const p1 = m.p1 ? getPlayer(div, m.p1) : null;
         const p2 = m.p2 ? getPlayer(div, m.p2) : null;
         if (m.bye) {
-          html += `<div class="scorecard"><strong>Board ${m.board}</strong> — Bye: ${formatHistoryPlayer(div, p1)} (+50 spread)</div>`;
+          html += `<div class="scorecard"><strong>Table ${m.board}</strong> — Bye: ${formatHistoryPlayer(div, p1)} (+50 spread)</div>`;
           return;
         }
         let result = "Pending";
@@ -2138,7 +2445,7 @@
             result = `Tie ${formatHistoryPlayer(div, p1)} vs ${formatHistoryPlayer(div, p2)} ${m.score1}-${m.score2}`;
           }
         }
-        html += `<div class="scorecard"><strong>Board ${m.board}</strong><div class="scorecard-grid">${result}</div></div>`;
+        html += `<div class="scorecard"><strong>Table ${m.board}</strong><div class="scorecard-grid">${result}</div></div>`;
       });
       html += "</div>";
     });
