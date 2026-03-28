@@ -899,6 +899,23 @@
 
   <script>
 (function () {
+  // #region agent log
+  function __dbg(loc, msg, data, hypothesisId) {
+    fetch("http://127.0.0.1:7819/ingest/8f44608a-874a-464e-96fb-e809a980f202", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "30909d" },
+      body: JSON.stringify({
+        sessionId: "30909d",
+        location: loc,
+        message: msg,
+        data: data || {},
+        timestamp: Date.now(),
+        hypothesisId: hypothesisId || "?",
+        runId: "post-fix"
+      })
+    }).catch(function () {});
+  }
+  // #endregion
   const STORAGE_KEY = "scrabble-tourney-v1";
   const IDB_NAME = "scrabble-tourney-db";
   const IDB_VERSION = 1;
@@ -1285,6 +1302,14 @@
   }
 
   let state = loadStateSync();
+  // #region agent log
+  __dbg("index.html:state", "state loaded", { divCount: (state.divisionOrder || []).length }, "A");
+  // #endregion
+
+  let setupDiv = "";
+  let pairDiv = "";
+  let lbDiv = "";
+  let histDiv = "";
 
   function saveState() {
     state.savedAt = Date.now();
@@ -1329,6 +1354,7 @@
 
   function toast(msg) {
     const el = document.getElementById("toast");
+    if (!el) return;
     el.textContent = msg;
     el.classList.add("show");
     clearTimeout(toast._t);
@@ -1776,11 +1802,6 @@
     t.addEventListener("click", () => switchTab(t.dataset.tab));
   });
 
-  let setupDiv = "";
-  let pairDiv = "";
-  let lbDiv = "";
-  let histDiv = "";
-
   function validateActiveDivisions() {
     const ids = divisionIds();
     if (ids.length === 0) return;
@@ -1871,8 +1892,18 @@
   let structureEditorBound = false;
   function initStructureEditor() {
     if (structureEditorBound) return;
-    structureEditorBound = true;
     const ed = document.getElementById("divisions-editor");
+    const addDivBtn = document.getElementById("btn-add-division");
+    const nameInput = document.getElementById("event-name");
+    // #region agent log
+    __dbg(
+      "initStructureEditor:dom",
+      "structure editor dom",
+      { hasEd: !!ed, hasAddDiv: !!addDivBtn, hasEventName: !!nameInput },
+      "B"
+    );
+    // #endregion
+    if (!ed || !addDivBtn || !nameInput) return;
     ed.addEventListener("change", (e) => {
       const roundsInp = e.target.closest(".div-rounds-input");
       if (roundsInp && !state.started) {
@@ -1927,14 +1958,21 @@
       const rm = e.target.closest(".btn-remove-div");
       if (rm && !state.started) removeDivision(rm.dataset.id);
     });
-    document.getElementById("btn-add-division").addEventListener("click", () => {
+    addDivBtn.addEventListener("click", () => {
       if (!state.started) addDivision();
     });
-    document.getElementById("event-name").addEventListener("input", (e) => {
+    nameInput.addEventListener("input", (e) => {
+      // #region agent log
+      __dbg("event-name:input", "event name input fired", { len: (e.target.value || "").length }, "F");
+      // #endregion
       state.eventName = e.target.value.slice(0, 120);
       renderHeaderChrome();
       saveState();
     });
+    structureEditorBound = true;
+    // #region agent log
+    __dbg("initStructureEditor:done", "structure editor bound", {}, "B");
+    // #endregion
   }
 
   function updatePairingRulesBlurb() {
@@ -1958,6 +1996,7 @@
   function renderDivisionsEditor() {
     initStructureEditor();
     const ed = document.getElementById("divisions-editor");
+    if (!ed) return;
     const locked = state.started;
     const ids = divisionIds();
     ed.innerHTML = ids
@@ -1992,9 +2031,13 @@
         </div>`;
       })
       .join("");
-    document.getElementById("event-name").value = state.eventName || "";
-    document.getElementById("event-name").disabled = false;
-    document.getElementById("btn-add-division").disabled = locked;
+    const evNm = document.getElementById("event-name");
+    if (evNm) {
+      evNm.value = state.eventName || "";
+      evNm.disabled = false;
+    }
+    const addDiv = document.getElementById("btn-add-division");
+    if (addDiv) addDiv.disabled = locked;
     updatePairingRulesBlurb();
   }
 
@@ -2029,6 +2072,9 @@
   function renderHeaderChrome() {
     const badge = document.getElementById("event-badge");
     const tag = document.getElementById("header-tagline");
+    // #region agent log
+    __dbg("renderHeaderChrome", "header chrome nodes", { hasBadge: !!badge, hasTag: !!tag, named: !!(state.eventName && String(state.eventName).trim()) }, "D");
+    // #endregion
     if (state.eventName && state.eventName.trim()) {
       badge.hidden = false;
       badge.textContent = state.eventName.trim();
@@ -2086,30 +2132,45 @@
     renderAll();
   }
 
-  document.getElementById("btn-add-player").addEventListener("click", addPlayerFromForm);
-  document.getElementById("player-name").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addPlayerFromForm();
-    }
-  });
+  // #region agent log
+  __dbg("index.html:listeners", "about to bind main buttons", {}, "E");
+  // #endregion
+  const btnAddPlayer = document.getElementById("btn-add-player");
+  if (btnAddPlayer) btnAddPlayer.addEventListener("click", addPlayerFromForm);
+  const inpPlayerName = document.getElementById("player-name");
+  if (inpPlayerName) {
+    inpPlayerName.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addPlayerFromForm();
+      }
+    });
+  }
 
-  document.getElementById("btn-start").addEventListener("click", startTournament);
-  document.getElementById("btn-reset").addEventListener("click", resetAll);
+  const btnStart = document.getElementById("btn-start");
+  if (btnStart) btnStart.addEventListener("click", startTournament);
+  const btnReset = document.getElementById("btn-reset");
+  if (btnReset) btnReset.addEventListener("click", resetAll);
 
-  document.getElementById("round-select").addEventListener("change", (e) => {
-    ensureDivisionKeys();
-    const v = parseInt(e.target.value, 10);
-    state.viewRoundByDiv[pairDiv] = isNaN(v) ? 0 : v;
-    saveState();
-    renderPairings();
-  });
+  const roundSelectEl = document.getElementById("round-select");
+  if (roundSelectEl) {
+    roundSelectEl.addEventListener("change", (e) => {
+      ensureDivisionKeys();
+      const v = parseInt(e.target.value, 10);
+      state.viewRoundByDiv[pairDiv] = isNaN(v) ? 0 : v;
+      saveState();
+      renderPairings();
+    });
+  }
 
-  document.getElementById("btn-next-round").addEventListener("click", advanceRoundForSelectedDivision);
+  const btnNextRound = document.getElementById("btn-next-round");
+  if (btnNextRound) btnNextRound.addEventListener("click", advanceRoundForSelectedDivision);
 
-  document.getElementById("btn-rebuild-round").addEventListener("click", rebuildCurrentRoundPairings);
+  const btnRebuildRound = document.getElementById("btn-rebuild-round");
+  if (btnRebuildRound) btnRebuildRound.addEventListener("click", rebuildCurrentRoundPairings);
 
-  document.getElementById("scorecard-player").addEventListener("change", renderScorecardDetail);
+  const scorecardSel = document.getElementById("scorecard-player");
+  if (scorecardSel) scorecardSel.addEventListener("change", renderScorecardDetail);
 
   function exportTournamentJson() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -2147,18 +2208,23 @@
     toast("Tournament imported.");
   }
 
-  document.getElementById("btn-export-json").addEventListener("click", exportTournamentJson);
-  document.getElementById("btn-import-json").addEventListener("click", () => {
-    document.getElementById("import-file").click();
-  });
-  document.getElementById("import-file").addEventListener("change", (e) => {
-    const f = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => importTournamentJson(String(reader.result || ""));
-    reader.readAsText(f);
-  });
+  const btnExport = document.getElementById("btn-export-json");
+  if (btnExport) btnExport.addEventListener("click", exportTournamentJson);
+  const btnImport = document.getElementById("btn-import-json");
+  const importFile = document.getElementById("import-file");
+  if (btnImport && importFile) {
+    btnImport.addEventListener("click", () => importFile.click());
+  }
+  if (importFile) {
+    importFile.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => importTournamentJson(String(reader.result || ""));
+      reader.readAsText(f);
+    });
+  }
 
   function applyWithdrawForfeits(div, playerId) {
     const ar = getActiveRound(div);
@@ -2206,6 +2272,7 @@
 
   function renderPlayerList() {
     const list = document.getElementById("player-list");
+    if (!list) return;
     const div = setupDiv;
     const players = state.players[div] || [];
     const sumEl = document.getElementById("division-counts-summary");
@@ -2482,6 +2549,7 @@
 
   function renderTourneyStatus() {
     const el = document.getElementById("tourney-status");
+    if (!el) return;
     if (!state.started) {
       el.textContent = "Tournament not started. Add players and press Start tournament.";
       return;
@@ -2506,6 +2574,7 @@
 
   function syncRoundSelect() {
     const sel = document.getElementById("round-select");
+    if (!sel) return;
     const div = pairDiv;
     sel.innerHTML = "";
     if (!state.started) {
@@ -2534,7 +2603,9 @@
     const div = pairDiv;
     const container = document.getElementById("pairings-container");
     const label = document.getElementById("pairings-round-label");
-    document.getElementById("btn-next-round").disabled = !state.started || !divisionCanAdvance(div);
+    const nextBtn = document.getElementById("btn-next-round");
+    if (!container || !label || !nextBtn) return;
+    nextBtn.disabled = !state.started || !divisionCanAdvance(div);
     const rebuildBtn = document.getElementById("btn-rebuild-round");
     if (rebuildBtn) {
       const canRe = state.started && canRebuildCurrentRound(div);
@@ -2552,7 +2623,8 @@
 
     syncRoundSelect();
     const ri = getViewRoundForDiv(div);
-    const round = state.rounds[div][ri];
+    const divRounds = state.rounds[div];
+    const round = divRounds && divRounds[ri];
     if (!round) {
       container.innerHTML =
         '<p class="empty-state">This division has no round ' +
@@ -2852,8 +2924,10 @@
 
   function renderLeaderboard() {
     const container = document.getElementById("leaderboard-container");
+    if (!container) return;
     const div = lbDiv;
-    if (state.players[div].length === 0) {
+    const roster = state.players[div];
+    if (!roster || roster.length === 0) {
       container.innerHTML = '<p class="empty-state">No players in this division.</p>';
       return;
     }
@@ -2886,13 +2960,15 @@
 
   function renderHistoryRounds() {
     const container = document.getElementById("history-rounds");
+    if (!container) return;
     const div = histDiv;
-    if (!state.started || state.rounds[div].length === 0) {
+    const divRounds = state.rounds[div];
+    if (!state.started || !divRounds || divRounds.length === 0) {
       container.innerHTML = '<p class="empty-state">No rounds yet.</p>';
       return;
     }
     let html = "";
-    state.rounds[div].forEach((round, ri) => {
+    divRounds.forEach((round, ri) => {
       html += `<div class="history-round"><h3>Round ${ri + 1}</h3>`;
       round.matches
         .slice()
@@ -3010,13 +3086,18 @@
   }
 
   function renderAll() {
+    // #region agent log
+    try {
+    // #endregion
     ensureDivisionKeys();
     clampDivisionScheduleToData();
     validateActiveDivisions();
     renderHeaderChrome();
     renderDivisionToggles();
     bindDivisionDelegatesOnce();
-    if (document.getElementById("panel-setup").classList.contains("active")) renderDivisionsEditor();
+    initStructureEditor();
+    const panelSetup = document.getElementById("panel-setup");
+    if (panelSetup && panelSetup.classList.contains("active")) renderDivisionsEditor();
     else updatePairingRulesBlurb();
     renderPlayerList();
     renderTourneyStatus();
@@ -3026,11 +3107,25 @@
     renderScorecardSelect();
     renderScorecardDetail();
     saveState();
+    // #region agent log
+    } catch (err) {
+      __dbg("renderAll:catch", "renderAll threw", { message: String(err && err.message), name: String(err && err.name) }, "C");
+      throw err;
+    }
+    // #endregion
   }
 
-  document.getElementById("btn-run-tests").addEventListener("click", () => runDesignTests(false));
+  const runTestsBtn = document.getElementById("btn-run-tests");
+  if (runTestsBtn) runTestsBtn.addEventListener("click", () => runDesignTests(false));
 
+  initStructureEditor();
+  // #region agent log
+  __dbg("index.html:boot", "after initStructureEditor, before renderAll", { bound: structureEditorBound }, "A");
+  // #endregion
   renderAll();
+  // #region agent log
+  __dbg("index.html:boot2", "after first renderAll", {}, "A");
+  // #endregion
 
   (function hydrateFromIndexedDBIfNewer() {
     if (!window.indexedDB) return;
