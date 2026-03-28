@@ -156,7 +156,7 @@
       display: flex;
       gap: 0.4rem;
       padding: 0.9rem 1rem;
-      max-width: 960px;
+      max-width: 1100px;
       margin: 0 auto;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -457,6 +457,161 @@
       gap: 0.25rem;
       font-size: 0.85rem;
       margin: 0;
+    }
+    .bye-hint {
+      margin: 0.5rem 0 0;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      max-width: 36rem;
+      line-height: 1.45;
+    }
+
+    /* Arena: light layout, divisions side by side (no fullscreen / no inner black box) */
+    .arena-card h2 {
+      margin: 0 0 0.35rem;
+    }
+    .arena-intro {
+      margin-bottom: 1rem;
+    }
+    .arena-board {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .arena-head {
+      text-align: center;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .arena-head .arena-event {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: clamp(1.15rem, 2.8vw, 1.5rem);
+      color: var(--text);
+      margin: 0 0 0.2rem;
+      line-height: 1.2;
+    }
+    .arena-head .arena-sub {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .arena-grid {
+      display: grid;
+      gap: 1rem 1.5rem;
+      align-items: start;
+    }
+    /* Two divisions: left | right on laptop */
+    .arena-grid.arena-grid--2 {
+      grid-template-columns: 1fr 1fr;
+    }
+    .arena-grid.arena-grid--1 {
+      grid-template-columns: 1fr;
+      max-width: 32rem;
+      margin: 0 auto;
+    }
+    .arena-grid.arena-grid--many {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (max-width: 720px) {
+      .arena-grid.arena-grid--2,
+      .arena-grid.arena-grid--many {
+        grid-template-columns: 1fr;
+      }
+    }
+    .arena-division {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.65rem 0.75rem 0.75rem;
+      min-width: 0;
+    }
+    .arena-div-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.25rem 0.75rem;
+      margin-bottom: 0.45rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .arena-div-head .arena-div-name {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0;
+    }
+    .arena-div-head .arena-div-meta {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .arena-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .arena-line {
+      display: grid;
+      grid-template-columns: 2.75rem 1fr;
+      gap: 0.5rem 0.65rem;
+      align-items: baseline;
+      padding: 0.2rem 0.35rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      color: var(--text);
+    }
+    .arena-line-king {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-ring);
+    }
+    .arena-tn {
+      font-family: var(--font-display);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .arena-p {
+      font-weight: 600;
+      word-break: break-word;
+    }
+    .arena-vs {
+      color: var(--text-muted);
+      font-weight: 500;
+      margin: 0 0.35em;
+    }
+    .arena-king-tag {
+      display: inline-block;
+      margin-left: 0.35rem;
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent-hover);
+      vertical-align: middle;
+    }
+    .arena-line-bye .arena-p {
+      color: var(--text-muted);
+      font-style: italic;
+      font-weight: 500;
+    }
+    .arena-line-forfeit .arena-p {
+      color: var(--danger);
+      font-weight: 600;
+    }
+    .arena-empty {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      padding: 1rem 0.5rem;
     }
     .round-bar {
       display: flex;
@@ -789,6 +944,7 @@
     <button type="button" class="tab" role="tab" aria-selected="false" data-tab="pairings">Pairings</button>
     <button type="button" class="tab" role="tab" aria-selected="false" data-tab="leaderboard">Leaderboard</button>
     <button type="button" class="tab" role="tab" aria-selected="false" data-tab="history">History</button>
+    <button type="button" class="tab" role="tab" aria-selected="false" data-tab="display">Arena</button>
   </nav>
 
   <main>
@@ -891,6 +1047,18 @@
           <select id="scorecard-player" style="margin-top:0.35rem;width:100%;max-width:320px"></select>
         </label>
         <div id="scorecard-detail" style="margin-top:1rem"></div>
+      </div>
+    </section>
+
+    <section id="panel-display" class="panel" role="tabpanel" hidden>
+      <div class="card arena-card">
+        <div class="arena-intro">
+          <h2>Arena</h2>
+          <p class="player-meta" style="margin:0;max-width:42rem">
+            Current-round pairings only. With two divisions, <strong>Open</strong> and <strong>Division B</strong> appear <strong>side by side</strong> so you can see everything on one screen (e.g. MacBook).
+          </p>
+        </div>
+        <div id="arena-board" class="arena-board"></div>
       </div>
     </section>
   </main>
@@ -1286,6 +1454,11 @@
 
   let state = loadStateSync();
 
+  let setupDiv = "";
+  let pairDiv = "";
+  let lbDiv = "";
+  let histDiv = "";
+
   function saveState() {
     state.savedAt = Date.now();
     const json = JSON.stringify(state);
@@ -1329,6 +1502,7 @@
 
   function toast(msg) {
     const el = document.getElementById("toast");
+    if (!el) return;
     el.textContent = msg;
     el.classList.add("show");
     clearTimeout(toast._t);
@@ -1770,16 +1944,12 @@
       p.hidden = !on;
     });
     if (id === "setup") renderDivisionsEditor();
+    if (id === "display") renderTvBoard();
   }
 
   document.querySelectorAll(".tab").forEach((t) => {
     t.addEventListener("click", () => switchTab(t.dataset.tab));
   });
-
-  let setupDiv = "";
-  let pairDiv = "";
-  let lbDiv = "";
-  let histDiv = "";
 
   function validateActiveDivisions() {
     const ids = divisionIds();
@@ -1871,8 +2041,10 @@
   let structureEditorBound = false;
   function initStructureEditor() {
     if (structureEditorBound) return;
-    structureEditorBound = true;
     const ed = document.getElementById("divisions-editor");
+    const addDivBtn = document.getElementById("btn-add-division");
+    const nameInput = document.getElementById("event-name");
+    if (!ed || !addDivBtn || !nameInput) return;
     ed.addEventListener("change", (e) => {
       const roundsInp = e.target.closest(".div-rounds-input");
       if (roundsInp && !state.started) {
@@ -1927,14 +2099,15 @@
       const rm = e.target.closest(".btn-remove-div");
       if (rm && !state.started) removeDivision(rm.dataset.id);
     });
-    document.getElementById("btn-add-division").addEventListener("click", () => {
+    addDivBtn.addEventListener("click", () => {
       if (!state.started) addDivision();
     });
-    document.getElementById("event-name").addEventListener("input", (e) => {
+    nameInput.addEventListener("input", (e) => {
       state.eventName = e.target.value.slice(0, 120);
       renderHeaderChrome();
       saveState();
     });
+    structureEditorBound = true;
   }
 
   function updatePairingRulesBlurb() {
@@ -1958,6 +2131,7 @@
   function renderDivisionsEditor() {
     initStructureEditor();
     const ed = document.getElementById("divisions-editor");
+    if (!ed) return;
     const locked = state.started;
     const ids = divisionIds();
     ed.innerHTML = ids
@@ -1992,9 +2166,13 @@
         </div>`;
       })
       .join("");
-    document.getElementById("event-name").value = state.eventName || "";
-    document.getElementById("event-name").disabled = false;
-    document.getElementById("btn-add-division").disabled = locked;
+    const evNm = document.getElementById("event-name");
+    if (evNm) {
+      evNm.value = state.eventName || "";
+      evNm.disabled = false;
+    }
+    const addDiv = document.getElementById("btn-add-division");
+    if (addDiv) addDiv.disabled = locked;
     updatePairingRulesBlurb();
   }
 
@@ -2086,30 +2264,42 @@
     renderAll();
   }
 
-  document.getElementById("btn-add-player").addEventListener("click", addPlayerFromForm);
-  document.getElementById("player-name").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addPlayerFromForm();
-    }
-  });
+  const btnAddPlayer = document.getElementById("btn-add-player");
+  if (btnAddPlayer) btnAddPlayer.addEventListener("click", addPlayerFromForm);
+  const inpPlayerName = document.getElementById("player-name");
+  if (inpPlayerName) {
+    inpPlayerName.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addPlayerFromForm();
+      }
+    });
+  }
 
-  document.getElementById("btn-start").addEventListener("click", startTournament);
-  document.getElementById("btn-reset").addEventListener("click", resetAll);
+  const btnStart = document.getElementById("btn-start");
+  if (btnStart) btnStart.addEventListener("click", startTournament);
+  const btnReset = document.getElementById("btn-reset");
+  if (btnReset) btnReset.addEventListener("click", resetAll);
 
-  document.getElementById("round-select").addEventListener("change", (e) => {
-    ensureDivisionKeys();
-    const v = parseInt(e.target.value, 10);
-    state.viewRoundByDiv[pairDiv] = isNaN(v) ? 0 : v;
-    saveState();
-    renderPairings();
-  });
+  const roundSelectEl = document.getElementById("round-select");
+  if (roundSelectEl) {
+    roundSelectEl.addEventListener("change", (e) => {
+      ensureDivisionKeys();
+      const v = parseInt(e.target.value, 10);
+      state.viewRoundByDiv[pairDiv] = isNaN(v) ? 0 : v;
+      saveState();
+      renderPairings();
+    });
+  }
 
-  document.getElementById("btn-next-round").addEventListener("click", advanceRoundForSelectedDivision);
+  const btnNextRound = document.getElementById("btn-next-round");
+  if (btnNextRound) btnNextRound.addEventListener("click", advanceRoundForSelectedDivision);
 
-  document.getElementById("btn-rebuild-round").addEventListener("click", rebuildCurrentRoundPairings);
+  const btnRebuildRound = document.getElementById("btn-rebuild-round");
+  if (btnRebuildRound) btnRebuildRound.addEventListener("click", rebuildCurrentRoundPairings);
 
-  document.getElementById("scorecard-player").addEventListener("change", renderScorecardDetail);
+  const scorecardSel = document.getElementById("scorecard-player");
+  if (scorecardSel) scorecardSel.addEventListener("change", renderScorecardDetail);
 
   function exportTournamentJson() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -2147,18 +2337,23 @@
     toast("Tournament imported.");
   }
 
-  document.getElementById("btn-export-json").addEventListener("click", exportTournamentJson);
-  document.getElementById("btn-import-json").addEventListener("click", () => {
-    document.getElementById("import-file").click();
-  });
-  document.getElementById("import-file").addEventListener("change", (e) => {
-    const f = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => importTournamentJson(String(reader.result || ""));
-    reader.readAsText(f);
-  });
+  const btnExport = document.getElementById("btn-export-json");
+  if (btnExport) btnExport.addEventListener("click", exportTournamentJson);
+  const btnImport = document.getElementById("btn-import-json");
+  const importFile = document.getElementById("import-file");
+  if (btnImport && importFile) {
+    btnImport.addEventListener("click", () => importFile.click());
+  }
+  if (importFile) {
+    importFile.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => importTournamentJson(String(reader.result || ""));
+      reader.readAsText(f);
+    });
+  }
 
   function applyWithdrawForfeits(div, playerId) {
     const ar = getActiveRound(div);
@@ -2206,6 +2401,7 @@
 
   function renderPlayerList() {
     const list = document.getElementById("player-list");
+    if (!list) return;
     const div = setupDiv;
     const players = state.players[div] || [];
     const sumEl = document.getElementById("division-counts-summary");
@@ -2482,6 +2678,7 @@
 
   function renderTourneyStatus() {
     const el = document.getElementById("tourney-status");
+    if (!el) return;
     if (!state.started) {
       el.textContent = "Tournament not started. Add players and press Start tournament.";
       return;
@@ -2506,6 +2703,7 @@
 
   function syncRoundSelect() {
     const sel = document.getElementById("round-select");
+    if (!sel) return;
     const div = pairDiv;
     sel.innerHTML = "";
     if (!state.started) {
@@ -2534,7 +2732,9 @@
     const div = pairDiv;
     const container = document.getElementById("pairings-container");
     const label = document.getElementById("pairings-round-label");
-    document.getElementById("btn-next-round").disabled = !state.started || !divisionCanAdvance(div);
+    const nextBtn = document.getElementById("btn-next-round");
+    if (!container || !label || !nextBtn) return;
+    nextBtn.disabled = !state.started || !divisionCanAdvance(div);
     const rebuildBtn = document.getElementById("btn-rebuild-round");
     if (rebuildBtn) {
       const canRe = state.started && canRebuildCurrentRound(div);
@@ -2552,7 +2752,8 @@
 
     syncRoundSelect();
     const ri = getViewRoundForDiv(div);
-    const round = state.rounds[div][ri];
+    const divRounds = state.rounds[div];
+    const round = divRounds && divRounds[ri];
     if (!round) {
       container.innerHTML =
         '<p class="empty-state">This division has no round ' +
@@ -2618,7 +2819,8 @@
 
       if (m.bye) {
         const bo = m.byeOutcome || getDivisionByeOutcome(div);
-        const byeEditable = isActiveRoundView && canRebuildCurrentRound(div);
+        const byeOutcomeEditable = isActiveRoundView;
+        const byeSwapEditable = isActiveRoundView && canRebuildCurrentRound(div);
         const nm = p1 ? escapeHtml(p1.name) : "";
         const wd = p1 && p1.withdrawn ? ' <span class="wd-tag">(WD)</span>' : "";
         header.innerHTML += `<span class="bye-tag">Bye — ${nm}${wd} · ${byeOutcomeSummary(bo)}</span>`;
@@ -2630,54 +2832,66 @@
             ? "No score entry. Does not add a win/loss to standings (TD choice)."
             : "No score entry; standings updated from bye type above.";
         wrap.appendChild(byeNote);
-        if (byeEditable) {
+        if (byeOutcomeEditable || byeSwapEditable) {
           const ctr = document.createElement("div");
           ctr.className = "bye-controls";
-          const labP = document.createElement("label");
-          labP.innerHTML = "<span>Who gets the bye</span>";
-          const selP = document.createElement("select");
-          selP.className = "bye-player-select";
-          selP.title = "Chooses the unpaired seat; the player you replace is swapped into that game.";
-          activePlayersForRound(div, ri).forEach((pl) => {
-            const o = document.createElement("option");
-            o.value = pl.id;
-            o.textContent = pl.name + (pl.withdrawn ? " (WD)" : "");
-            if (pl.id === m.p1) o.selected = true;
-            selP.appendChild(o);
-          });
-          selP.addEventListener("change", function () {
-            const nid = selP.value;
-            if (swapByeRecipient(div, ri, m, nid)) {
+          if (byeOutcomeEditable) {
+            const labO = document.createElement("label");
+            labO.innerHTML = "<span>Bye type (this round)</span>";
+            const selO = document.createElement("select");
+            selO.className = "bye-outcome-select";
+            selO.title = "Full win, half-point, or sit-out — applies to standings for this bye.";
+            [["full", "Full win (+50)"], ["half", "Half-point (+25)"], ["none", "Sit-out"]].forEach(([val, lbl]) => {
+              const o = document.createElement("option");
+              o.value = val;
+              o.textContent = lbl;
+              if (val === bo) o.selected = true;
+              selO.appendChild(o);
+            });
+            selO.addEventListener("change", function () {
+              const v = selO.value;
+              m.byeOutcome = v === "half" || v === "none" ? v : "full";
+              syncByeMatchStatsFields(div, m);
               saveState();
-              renderPairings();
-            } else {
-              selP.value = m.p1 || "";
-              toast("Could not give the bye to that player (they must be in a normal pairing to swap).");
-            }
-          });
-          labP.appendChild(selP);
-          ctr.appendChild(labP);
-          const labO = document.createElement("label");
-          labO.innerHTML = "<span>Bye type (this round)</span>";
-          const selO = document.createElement("select");
-          selO.className = "bye-outcome-select";
-          [["full", "Full win (+50)"], ["half", "Half-point (+25)"], ["none", "Sit-out"]].forEach(([val, label]) => {
-            const o = document.createElement("option");
-            o.value = val;
-            o.textContent = label;
-            if (val === bo) o.selected = true;
-            selO.appendChild(o);
-          });
-          selO.addEventListener("change", function () {
-            const v = selO.value;
-            m.byeOutcome = v === "half" || v === "none" ? v : "full";
-            syncByeMatchStatsFields(div, m);
-            saveState();
-            renderPairings();
-          });
-          labO.appendChild(selO);
-          ctr.appendChild(labO);
+              renderAll();
+            });
+            labO.appendChild(selO);
+            ctr.appendChild(labO);
+          }
+          if (byeSwapEditable) {
+            const labP = document.createElement("label");
+            labP.innerHTML = "<span>Who gets the bye</span>";
+            const selP = document.createElement("select");
+            selP.className = "bye-player-select";
+            selP.title = "Swaps with the player you pick from their table (only while no scores are entered).";
+            activePlayersForRound(div, ri).forEach((pl) => {
+              const o = document.createElement("option");
+              o.value = pl.id;
+              o.textContent = pl.name + (pl.withdrawn ? " (WD)" : "");
+              if (pl.id === m.p1) o.selected = true;
+              selP.appendChild(o);
+            });
+            selP.addEventListener("change", function () {
+              const nid = selP.value;
+              if (swapByeRecipient(div, ri, m, nid)) {
+                saveState();
+                renderAll();
+              } else {
+                selP.value = m.p1 || "";
+                toast("Could not give the bye to that player (they must be in a normal pairing to swap).");
+              }
+            });
+            labP.appendChild(selP);
+            ctr.appendChild(labP);
+          }
           wrap.appendChild(ctr);
+          if (byeOutcomeEditable && !byeSwapEditable) {
+            const hint = document.createElement("p");
+            hint.className = "bye-hint";
+            hint.textContent =
+              "To change who has the bye: use Rebuild pairings, or clear/unlock scores on every table in this round first (swap needs a “clean” round).";
+            wrap.appendChild(hint);
+          }
         }
         container.appendChild(wrap);
         return;
@@ -2852,8 +3066,10 @@
 
   function renderLeaderboard() {
     const container = document.getElementById("leaderboard-container");
+    if (!container) return;
     const div = lbDiv;
-    if (state.players[div].length === 0) {
+    const roster = state.players[div];
+    if (!roster || roster.length === 0) {
       container.innerHTML = '<p class="empty-state">No players in this division.</p>';
       return;
     }
@@ -2886,13 +3102,15 @@
 
   function renderHistoryRounds() {
     const container = document.getElementById("history-rounds");
+    if (!container) return;
     const div = histDiv;
-    if (!state.started || state.rounds[div].length === 0) {
+    const divRounds = state.rounds[div];
+    if (!state.started || !divRounds || divRounds.length === 0) {
       container.innerHTML = '<p class="empty-state">No rounds yet.</p>';
       return;
     }
     let html = "";
-    state.rounds[div].forEach((round, ri) => {
+    divRounds.forEach((round, ri) => {
       html += `<div class="history-round"><h3>Round ${ri + 1}</h3>`;
       round.matches
         .slice()
@@ -3009,6 +3227,93 @@
       "</div></div>";
   }
 
+  function renderTvBoard() {
+    const root = document.getElementById("arena-board");
+    if (!root) return;
+    if (!state.started) {
+      root.innerHTML =
+        '<p class="arena-empty">Start the tournament from <strong>Setup</strong> to see pairings here.</p>';
+      return;
+    }
+    const ids = divisionIds();
+    const nDiv = ids.length;
+    let gridMod = "arena-grid--many";
+    if (nDiv === 1) gridMod = "arena-grid--1";
+    else if (nDiv === 2) gridMod = "arena-grid--2";
+
+    const rawTitle = state.eventName && String(state.eventName).trim() ? state.eventName.trim() : "Pairings";
+    let html = '<div class="arena-head">';
+    html += '<p class="arena-event">' + escapeHtml(rawTitle) + "</p>";
+    html += '<p class="arena-sub">Current round · all divisions</p></div>';
+    html += '<div class="arena-grid ' + gridMod + '">';
+
+    ids.forEach((d) => {
+      const ar = getActiveRound(d);
+      const rc = getDivisionRoundCount(d);
+      const round = state.rounds[d] && state.rounds[d][ar];
+      html += '<section class="arena-division">';
+      html += '<div class="arena-div-head">';
+      html += '<h3 class="arena-div-name">' + escapeHtml(getDivisionName(d)) + "</h3>";
+      html += '<span class="arena-div-meta">R' + (ar + 1) + " / " + rc + "</span></div>";
+
+      if (!round || !round.matches || !round.matches.length) {
+        html += '<p class="arena-empty">No pairings.</p></section>';
+        return;
+      }
+
+      const sorted = round.matches.slice().sort((a, b) => (a.board || 0) - (b.board || 0));
+      html += '<div class="arena-lines">';
+      sorted.forEach((m) => {
+        if (m.forfeitLoss) {
+          const loser = m.loserId ? getPlayer(d, m.loserId) : null;
+          const ln = loser ? escapeHtml(loser.name) : "?";
+          html +=
+            '<div class="arena-line arena-line-forfeit"><span class="arena-tn">T' +
+            (m.board || "—") +
+            '</span><span class="arena-p">Forfeit — ' +
+            ln +
+            " (WD)</span></div>";
+          return;
+        }
+        if (m.bye) {
+          const p = m.p1 ? getPlayer(d, m.p1) : null;
+          const pn = p ? escapeHtml(p.name) : "?";
+          const bo = m.byeOutcome || getDivisionByeOutcome(d);
+          const sub =
+            bo === "half" ? "Half bye" : bo === "none" ? "Sit-out" : "Full bye (+50)";
+          html +=
+            '<div class="arena-line arena-line-bye"><span class="arena-tn">Bye</span><span class="arena-p">' +
+            pn +
+            " — " +
+            escapeHtml(sub) +
+            "</span></div>";
+          return;
+        }
+        const a = m.p1 ? getPlayer(d, m.p1) : null;
+        const b = m.p2 ? getPlayer(d, m.p2) : null;
+        const n1 = a ? escapeHtml(a.name) + (a.withdrawn ? " (WD)" : "") : "?";
+        const n2 = b ? escapeHtml(b.name) + (b.withdrawn ? " (WD)" : "") : "?";
+        const king = m.board === 1 ? '<span class="arena-king-tag">King</span>' : "";
+        const rowClass = m.board === 1 ? " arena-line-king" : "";
+        html +=
+          '<div class="arena-line' +
+          rowClass +
+          '"><span class="arena-tn">T' +
+          (m.board || "—") +
+          '</span><span class="arena-p">' +
+          n1 +
+          '<span class="arena-vs">vs</span>' +
+          n2 +
+          king +
+          "</span></div>";
+      });
+      html += "</div></section>";
+    });
+
+    html += "</div>";
+    root.innerHTML = html;
+  }
+
   function renderAll() {
     ensureDivisionKeys();
     clampDivisionScheduleToData();
@@ -3016,7 +3321,9 @@
     renderHeaderChrome();
     renderDivisionToggles();
     bindDivisionDelegatesOnce();
-    if (document.getElementById("panel-setup").classList.contains("active")) renderDivisionsEditor();
+    initStructureEditor();
+    const panelSetup = document.getElementById("panel-setup");
+    if (panelSetup && panelSetup.classList.contains("active")) renderDivisionsEditor();
     else updatePairingRulesBlurb();
     renderPlayerList();
     renderTourneyStatus();
@@ -3025,11 +3332,14 @@
     renderHistoryRounds();
     renderScorecardSelect();
     renderScorecardDetail();
+    renderTvBoard();
     saveState();
   }
 
-  document.getElementById("btn-run-tests").addEventListener("click", () => runDesignTests(false));
+  const runTestsBtn = document.getElementById("btn-run-tests");
+  if (runTestsBtn) runTestsBtn.addEventListener("click", () => runDesignTests(false));
 
+  initStructureEditor();
   renderAll();
 
   (function hydrateFromIndexedDBIfNewer() {
