@@ -280,27 +280,6 @@
       border-bottom: 1px solid var(--border);
     }
     .division-editor-row:last-child { border-bottom: none; }
-    .division-editor-row label.div-meta-label {
-      flex: 0 1 auto;
-      min-width: 5.5rem;
-    }
-    .division-editor-row label.div-meta-label input {
-      min-width: 4.5rem;
-      width: 4.75rem;
-    }
-    .king-table-badge {
-      margin-left: 0.35rem;
-      padding: 0.12rem 0.45rem;
-      border-radius: 999px;
-      font-size: 0.58rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      vertical-align: middle;
-      background: linear-gradient(135deg, rgba(30, 58, 95, 0.14), rgba(30, 58, 95, 0.06));
-      color: var(--accent);
-      border: 1px solid rgba(30, 58, 95, 0.22);
-    }
     .btn-ghost {
       padding: 0.45rem 0.75rem;
       font-size: 0.68rem;
@@ -441,23 +420,6 @@
       color: var(--accent-hover);
     }
 
-    .round-bar .btn-rebuild-round {
-      margin-left: auto;
-    }
-    .bye-controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem 1.25rem;
-      align-items: flex-end;
-      margin-top: 0.5rem;
-    }
-    .bye-controls label {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      font-size: 0.85rem;
-      margin: 0;
-    }
     .round-bar {
       display: flex;
       flex-wrap: wrap;
@@ -532,18 +494,6 @@
       color: var(--text-muted);
       margin-top: 0.2rem;
       font-weight: 500;
-    }
-    .player-cell .turn-call {
-      font-size: 0.72rem;
-      font-weight: 700;
-      margin-top: 0.35rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-    .player-cell .turn-call.second {
-      color: var(--text-muted);
-      font-weight: 600;
     }
     .vs-cell {
       font-family: var(--font-body);
@@ -795,10 +745,13 @@
     <section id="panel-setup" class="panel active" role="tabpanel">
       <div class="card">
         <h2>Tournament structure</h2>
-        <p class="player-meta" style="margin-top:-0.5rem;margin-bottom:1rem">Define divisions and schedule before play. Each division can use a different number of rounds and a different table count. Locked after you start the event.</p>
+        <p class="player-meta" style="margin-top:-0.5rem;margin-bottom:1rem">Define divisions and schedule before play. Locked after you start the event.</p>
         <div class="config-grid">
           <label>Event name (optional)
             <input type="text" id="event-name" placeholder="e.g. Regional Championship" maxlength="120" autocomplete="off" />
+          </label>
+          <label>Number of rounds (1–12)
+            <input type="number" id="total-rounds-input" min="1" max="12" step="1" value="4" />
           </label>
         </div>
         <div id="divisions-editor"></div>
@@ -812,10 +765,6 @@
       <div class="card">
         <h2>Roster</h2>
         <p class="player-meta" id="division-counts-summary" style="margin-top:-0.5rem;margin-bottom:1rem"></p>
-        <p class="player-meta" style="margin-top:-0.35rem;margin-bottom:0.85rem;max-width:52rem;line-height:1.45">
-          <strong>Late arrival:</strong> you can add a player after start — they are marked “from R…” and first pair in the next round. If that round has no scores yet, open <strong>Pairings</strong> and use <strong>Rebuild pairings</strong>.
-          <strong>Leave early / withdraw:</strong> their opponent is credited with the win for that table; later rounds omit them. The field toggles odd/even, so someone else may get or lose a bye next round.
-        </p>
         <div class="form-row">
           <label>Name
             <input type="text" id="player-name" placeholder="Player name" autocomplete="off" />
@@ -838,9 +787,6 @@
           <button type="button" class="btn btn-secondary" id="btn-import-json">Import JSON</button>
           <input type="file" id="import-file" accept="application/json,.json" hidden />
         </div>
-        <p class="player-meta" id="autosave-note" style="margin-top:0.85rem">
-          Saves immediately to <strong>localStorage</strong> (reload-safe). Also mirrors to <strong>IndexedDB</strong> when available. If you open this file via <code>file://</code>, use the same browser and don’t block storage. Use <strong>Export JSON</strong> before clearing site data.
-        </p>
         <p class="player-meta" id="tourney-status" style="margin-top:1rem"></p>
       </div>
 
@@ -860,12 +806,11 @@
       <div class="card">
         <h2>Pairings</h2>
         <div class="round-bar">
-          <label style="margin:0">Round <span class="player-meta" style="font-weight:500;text-transform:none;letter-spacing:0">(selected division)</span>
+          <label style="margin:0">Round
             <select id="round-select" disabled></select>
           </label>
           <span class="badge" id="pairings-round-label"></span>
-          <button type="button" class="btn btn-small" id="btn-next-round" disabled title="Creates the next round only for the division shown above">Next round · this division</button>
-          <button type="button" class="btn btn-secondary btn-small btn-rebuild-round" id="btn-rebuild-round" disabled title="Regenerate this round from the current roster (use after a late add or before any scores are entered)">Rebuild pairings</button>
+          <button type="button" class="btn btn-small" id="btn-next-round" disabled>Next round</button>
         </div>
         <div id="pairings-container"></div>
       </div>
@@ -900,92 +845,6 @@
   <script>
 (function () {
   const STORAGE_KEY = "scrabble-tourney-v1";
-  const IDB_NAME = "scrabble-tourney-db";
-  const IDB_VERSION = 1;
-  const IDB_STORE = "tournament";
-
-  function openTournamentDB() {
-    return new Promise(function (resolve, reject) {
-      if (!window.indexedDB) {
-        reject(new Error("no idb"));
-        return;
-      }
-      const req = indexedDB.open(IDB_NAME, IDB_VERSION);
-      req.onerror = function () {
-        reject(req.error);
-      };
-      req.onupgradeneeded = function () {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(IDB_STORE)) {
-          db.createObjectStore(IDB_STORE);
-        }
-      };
-      req.onsuccess = function () {
-        resolve(req.result);
-      };
-    });
-  }
-
-  function idbGetRaw() {
-    return openTournamentDB().then(function (db) {
-      return new Promise(function (resolve, reject) {
-        let done = false;
-        const tx = db.transaction(IDB_STORE, "readonly");
-        const store = tx.objectStore(IDB_STORE);
-        const r = store.get(STORAGE_KEY);
-        r.onsuccess = function () {
-          if (done) return;
-          done = true;
-          try {
-            db.close();
-          } catch (e) {}
-          resolve(r.result != null ? r.result : null);
-        };
-        r.onerror = function () {
-          if (done) return;
-          done = true;
-          try {
-            db.close();
-          } catch (e) {}
-          reject(r.error);
-        };
-      });
-    });
-  }
-
-  function idbPutRaw(jsonString) {
-    return openTournamentDB().then(function (db) {
-      return new Promise(function (resolve, reject) {
-        let finished = false;
-        const tx = db.transaction(IDB_STORE, "readwrite");
-        tx.oncomplete = function () {
-          if (finished) return;
-          finished = true;
-          try {
-            db.close();
-          } catch (e) {}
-          resolve();
-        };
-        tx.onerror = function () {
-          if (finished) return;
-          finished = true;
-          try {
-            db.close();
-          } catch (e) {}
-          reject(tx.error);
-        };
-        tx.onabort = function () {
-          if (finished) return;
-          finished = true;
-          try {
-            db.close();
-          } catch (e) {}
-          reject(tx.error || new Error("abort"));
-        };
-        tx.objectStore(IDB_STORE).put(jsonString, STORAGE_KEY);
-      });
-    });
-  }
 
   function uid() {
     return "p_" + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
@@ -999,27 +858,25 @@
     const a = newDivisionId();
     const b = newDivisionId();
     return {
-      schemaVersion: 3,
+      schemaVersion: 2,
       eventName: "",
       totalRounds: 4,
       divisionOrder: [a, b],
       divisionsMeta: {
-        [a]: { id: a, name: "Open", roundCount: 4, tableCount: null, byeOutcome: "full" },
-        [b]: { id: b, name: "Division B", roundCount: 4, tableCount: null, byeOutcome: "full" }
+        [a]: { id: a, name: "Open" },
+        [b]: { id: b, name: "Division B" }
       },
       players: { [a]: [], [b]: [] },
       rounds: { [a]: [], [b]: [] },
       started: false,
-      activeRoundByDiv: {},
-      viewRoundByDiv: {},
-      ui: {},
-      savedAt: 0
+      currentRound: 0,
+      viewRound: null
     };
   }
 
   function migrateLegacyState(s) {
     if (!s || typeof s !== "object") return defaultState();
-    if (s.schemaVersion >= 2 && Array.isArray(s.divisionOrder) && s.divisionOrder.length > 0) return s;
+    if (s.schemaVersion === 2 && Array.isArray(s.divisionOrder) && s.divisionOrder.length > 0) return s;
     const pl = s.players || {};
     const rd = s.rounds || {};
     if (pl.junior !== undefined || pl.senior !== undefined) {
@@ -1059,34 +916,7 @@
   }
 
   function getTotalRounds() {
-    return getMaxRoundsAcrossDivisions();
-  }
-
-  function getDivisionRoundCount(div) {
-    const m = state.divisionsMeta && state.divisionsMeta[div];
-    const raw =
-      m && m.roundCount != null && m.roundCount !== ""
-        ? parseInt(m.roundCount, 10)
-        : parseInt(state.totalRounds, 10) || 4;
-    return Math.max(1, Math.min(12, isNaN(raw) ? 4 : raw));
-  }
-
-  function getMaxRoundsAcrossDivisions() {
-    const ids = divisionIds();
-    if (!ids.length) return Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
-    return Math.max(...ids.map((d) => getDivisionRoundCount(d)));
-  }
-
-  function getDivisionTableCount(div) {
-    const m = state.divisionsMeta && state.divisionsMeta[div];
-    if (!m || m.tableCount == null || m.tableCount === "") return null;
-    const t = parseInt(m.tableCount, 10);
-    if (isNaN(t) || t < 1) return null;
-    return Math.min(99, t);
-  }
-
-  function boardsNeededForActivePlayers(nActive) {
-    return Math.max(1, Math.ceil(Math.max(0, nActive) / 2));
+    return Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
   }
 
   function getDivisionName(id) {
@@ -1094,129 +924,11 @@
     return (m && m.name) || id;
   }
 
-  function getDivisionByeOutcome(div) {
-    const v = state.divisionsMeta[div] && state.divisionsMeta[div].byeOutcome;
-    if (v === "half" || v === "none") return v;
-    return "full";
-  }
-
-  function activePlayersForRound(div, roundIndex) {
-    return state.players[div].filter(function (p) {
-      if (p.withdrawn) return false;
-      if (p.joinedAtRound != null && roundIndex < p.joinedAtRound) return false;
-      return true;
-    });
-  }
-
-  function syncByeMatchStatsFields(div, m) {
-    if (!m || !m.bye) return;
-    const bo = m.byeOutcome || getDivisionByeOutcome(div);
-    m.byeOutcome = bo;
-    if (bo === "full") m.byeSpread = 50;
-    else if (bo === "half") m.byeSpread = 25;
-    else m.byeSpread = 0;
-    m.complete = true;
-  }
-
-  function byeOutcomeSummary(bo) {
-    if (bo === "half") return "half-point bye (+25 spread)";
-    if (bo === "none") return "sit-out (no standings change)";
-    return "full win (+50 spread)";
-  }
-
-  /** Swap who sits: put newByeId on the bye card and plug the former bye player into newByeId’s game. */
-  function swapByeRecipient(div, roundIndex, byeMatch, newByeId) {
-    if (!byeMatch || !byeMatch.bye || !newByeId) return false;
-    if (byeMatch.p1 === newByeId) return true;
-    const round = state.rounds[div][roundIndex];
-    if (!round) return false;
-    const other = round.matches.find(function (x) {
-      return !x.bye && !x.forfeitLoss && (x.p1 === newByeId || x.p2 === newByeId);
-    });
-    if (!other || !other.p1 || !other.p2) return false;
-    const oldBye = byeMatch.p1;
-    byeMatch.p1 = newByeId;
-    if (other.p1 === newByeId) other.p1 = oldBye;
-    else other.p2 = oldBye;
-    other.goesFirst = chooseGoesFirst(div, roundIndex, other.p1, other.p2);
-    syncByeMatchStatsFields(div, byeMatch);
-    return true;
-  }
-
-  function canRebuildCurrentRound(div) {
-    const ar = getActiveRound(div);
-    const r = state.rounds[div] && state.rounds[div][ar];
-    if (!r) return false;
-    return !r.matches.some(function (m) {
-      if (m.forfeitLoss || m.bye) return false;
-      return m.complete || m.score1 != null || m.score2 != null;
-    });
-  }
-
-  function rebuildCurrentRoundPairings() {
-    const div = pairDiv;
-    if (!state.started) return;
-    if (!canRebuildCurrentRound(div)) {
-      toast("Rebuild only when every real game has no scores and is not locked.");
-      return;
-    }
-    const ar = getActiveRound(div);
-    const fresh = buildRound(div, ar);
-    state.rounds[div][ar].matches = fresh.matches;
-    appendWithdrawnForfeitMatches(div, ar);
-    saveState();
-    toast("Pairings regenerated for this round (includes late adds).");
-    renderAll();
-  }
-
   function ensureDivisionKeys() {
-    if (!state.activeRoundByDiv || typeof state.activeRoundByDiv !== "object") state.activeRoundByDiv = {};
-    if (!state.viewRoundByDiv || typeof state.viewRoundByDiv !== "object") state.viewRoundByDiv = {};
     divisionIds().forEach((id) => {
-      if (!state.divisionsMeta[id]) state.divisionsMeta[id] = { id, name: id, roundCount: 4, tableCount: null, byeOutcome: "full" };
-      const meta = state.divisionsMeta[id];
-      if (meta.roundCount == null) meta.roundCount = Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
-      if (meta.tableCount === undefined) meta.tableCount = null;
-      if (meta.byeOutcome !== "half" && meta.byeOutcome !== "none") meta.byeOutcome = "full";
+      if (!state.divisionsMeta[id]) state.divisionsMeta[id] = { id, name: id };
       if (!Array.isArray(state.players[id])) state.players[id] = [];
       if (!Array.isArray(state.rounds[id])) state.rounds[id] = [];
-      if (state.activeRoundByDiv[id] == null) state.activeRoundByDiv[id] = 0;
-      if (state.viewRoundByDiv[id] == null) state.viewRoundByDiv[id] = 0;
-    });
-  }
-
-  function getActiveRound(div) {
-    ensureDivisionKeys();
-    let ar = state.activeRoundByDiv[div];
-    if (ar == null) ar = 0;
-    return ar;
-  }
-
-  function getViewRoundForDiv(div) {
-    ensureDivisionKeys();
-    const len = state.rounds[div] ? state.rounds[div].length : 0;
-    if (len === 0) return 0;
-    let vr = state.viewRoundByDiv[div];
-    if (vr == null) vr = getActiveRound(div);
-    return Math.max(0, Math.min(len - 1, vr));
-  }
-
-  function clampDivisionScheduleToData() {
-    divisionIds().forEach((d) => {
-      const len = state.rounds[d] ? state.rounds[d].length : 0;
-      const rc = getDivisionRoundCount(d);
-      if (len === 0) {
-        state.activeRoundByDiv[d] = 0;
-        state.viewRoundByDiv[d] = 0;
-        return;
-      }
-      let ar = state.activeRoundByDiv[d];
-      if (ar == null) ar = 0;
-      ar = Math.max(0, Math.min(ar, len - 1, rc - 1));
-      state.activeRoundByDiv[d] = ar;
-      let vr = state.viewRoundByDiv[d];
-      if (vr == null) vr = ar;
-      state.viewRoundByDiv[d] = Math.max(0, Math.min(vr, len - 1));
     });
   }
 
@@ -1233,46 +945,22 @@
     if (!s.divisionsMeta) s.divisionsMeta = {};
     if (!s.players) s.players = {};
     if (!s.rounds) s.rounds = {};
-    s.schemaVersion = 3;
+    s.schemaVersion = 2;
     if (s.eventName == null) s.eventName = "";
     s.totalRounds = Math.max(1, Math.min(12, parseInt(s.totalRounds, 10) || 4));
     (s.divisionOrder || []).forEach((id) => {
       if (!s.divisionsMeta[id]) s.divisionsMeta[id] = { id, name: id };
-      const dm = s.divisionsMeta[id];
-      if (dm.roundCount == null || dm.roundCount === "")
-        dm.roundCount = Math.max(1, Math.min(12, parseInt(s.totalRounds, 10) || 4));
-      else dm.roundCount = Math.max(1, Math.min(12, parseInt(dm.roundCount, 10) || 4));
-      if (dm.tableCount === undefined) dm.tableCount = null;
-      if (dm.byeOutcome !== "half" && dm.byeOutcome !== "none") dm.byeOutcome = "full";
       if (!Array.isArray(s.players[id])) s.players[id] = [];
       if (!Array.isArray(s.rounds[id])) s.rounds[id] = [];
       s.players[id].forEach((p) => {
         if (p.withdrawn == null) p.withdrawn = false;
         if (!p.withdrawn) p.withdrawnAtRound = null;
-        if (p.joinedAtRound === undefined) p.joinedAtRound = null;
       });
     });
-    if (!s.activeRoundByDiv || typeof s.activeRoundByDiv !== "object") s.activeRoundByDiv = {};
-    if (!s.viewRoundByDiv || typeof s.viewRoundByDiv !== "object") s.viewRoundByDiv = {};
-    const legacyCr = s.currentRound != null ? s.currentRound : 0;
-    const legacyVr = s.viewRound != null ? s.viewRound : legacyCr;
-    (s.divisionOrder || []).forEach((id) => {
-      if (s.activeRoundByDiv[id] == null) s.activeRoundByDiv[id] = legacyCr;
-      if (s.viewRoundByDiv[id] == null) s.viewRoundByDiv[id] = legacyVr;
-    });
-    if (s.savedAt == null || isNaN(Number(s.savedAt))) s.savedAt = 0;
-    (s.divisionOrder || []).forEach((id) => {
-      (s.rounds[id] || []).forEach((round) => {
-        (round.matches || []).forEach((m) => {
-          if (!m.bye && !m.forfeitLoss && m.p1 && m.p2 && m.goesFirst == null) m.goesFirst = m.p1;
-          if (m.bye && m.byeOutcome !== "half" && m.byeOutcome !== "none") m.byeOutcome = "full";
-        });
-      });
-    });
-    if (!s.ui || typeof s.ui !== "object") s.ui = {};
+    if (s.viewRound == null && s.started) s.viewRound = s.currentRound;
   }
 
-  function loadStateSync() {
+  function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -1284,52 +972,16 @@
     return defaultState();
   }
 
-  let state = loadStateSync();
+  let state = loadState();
 
   function saveState() {
-    state.savedAt = Date.now();
-    const json = JSON.stringify(state);
     try {
-      localStorage.setItem(STORAGE_KEY, json);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {}
-    if (window.indexedDB) {
-      idbPutRaw(json).catch(function () {});
-    }
   }
-
-  function debounce(fn, ms) {
-    let t = null;
-    return function debounced() {
-      clearTimeout(t);
-      const args = arguments;
-      t = setTimeout(() => fn.apply(null, args), ms);
-    };
-  }
-
-  const debouncedSaveState = debounce(saveState, 400);
-
-  function hydrateUiPrefs() {
-    const ids = divisionIds();
-    if (!ids.length) return;
-    const u = state.ui || {};
-    if (u.setupDiv && ids.includes(u.setupDiv)) setupDiv = u.setupDiv;
-    if (u.pairDiv && ids.includes(u.pairDiv)) pairDiv = u.pairDiv;
-    if (u.lbDiv && ids.includes(u.lbDiv)) lbDiv = u.lbDiv;
-    if (u.histDiv && ids.includes(u.histDiv)) histDiv = u.histDiv;
-  }
-
-  hydrateUiPrefs();
-
-  window.addEventListener("beforeunload", () => {
-    saveState();
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") saveState();
-  });
 
   function toast(msg) {
     const el = document.getElementById("toast");
-    if (!el) return;
     el.textContent = msg;
     el.classList.add("show");
     clearTimeout(toast._t);
@@ -1371,20 +1023,10 @@
         }
         if (!m.complete || m.bye) {
           if (m.bye && m.complete && m.p1) {
-            const st = stats[m.p1];
-            if (st) {
-              const bo = m.byeOutcome || "full";
-              if (bo === "none") {
-                /* sit-out: no W/L/spread */
-              } else if (bo === "half") {
-                st.wins += 0.5;
-                st.losses += 0.5;
-                st.games += 1;
-                st.spread += m.byeSpread != null ? m.byeSpread : 25;
-              } else {
-                st.wins += 1;
-                st.spread += m.byeSpread != null ? m.byeSpread : 50;
-              }
+            const s = stats[m.p1];
+            if (s) {
+              s.wins += 1;
+              s.spread += m.byeSpread != null ? m.byeSpread : 50;
             }
           }
           continue;
@@ -1505,121 +1147,22 @@
     return matches;
   }
 
-  function standingsRankIndexMap(div) {
-    const players = state.players[div].filter((p) => !p.withdrawn);
-    const stats = computeStats(div);
-    const sorted = players.slice().sort((a, b) => {
-      const sa = stats[a.id] || { wins: 0, spread: 0 };
-      const sb = stats[b.id] || { wins: 0, spread: 0 };
-      const wa = sa.wins - sa.losses;
-      const wb = sb.wins - sb.losses;
-      if (wb !== wa) return wb - wa;
-      if ((sb.spread || 0) !== (sa.spread || 0)) return (sb.spread || 0) - (sa.spread || 0);
-      return (b.rating || 0) - (a.rating || 0);
-    });
-    const map = {};
-    sorted.forEach((p, i) => {
-      map[p.id] = i;
-    });
-    return map;
-  }
-
-  function assignBoardsKingOfCourt(div, matches) {
-    const rankMap = standingsRankIndexMap(div);
-    const decorated = matches.map((m) => {
-      if (m.bye) {
-        const idx = rankMap[m.p1] != null ? rankMap[m.p1] : 999;
-        return { m, sortKey: idx, bye: true };
-      }
-      const i1 = rankMap[m.p1] != null ? rankMap[m.p1] : 999;
-      const i2 = rankMap[m.p2] != null ? rankMap[m.p2] : 999;
-      return { m, sortKey: i1 + i2, bye: false };
-    });
-    decorated.sort((a, b) => {
-      if (a.bye !== b.bye) return a.bye ? 1 : -1;
-      if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey;
-      const ida = a.m.p1 || "";
-      const idb = b.m.p1 || "";
-      return String(ida).localeCompare(String(idb));
-    });
-    const n = decorated.length;
-    const cap = getDivisionTableCount(div);
-    if (cap != null && cap < n) {
-      toast(
-        getDivisionName(div) +
-          ": this round has " +
-          n +
-          " games — using table numbers 1–" +
-          n +
-          ". Set Tables to at least " +
-          n +
-          " if that matches your room layout."
-      );
-    }
-    decorated.forEach((d, i) => {
-      d.m.board = i + 1;
-    });
-  }
-
-  function getLastFirstTurnRole(div, playerId, beforeRoundIndex) {
-    for (let ri = beforeRoundIndex - 1; ri >= 0; ri--) {
-      const round = state.rounds[div][ri];
-      if (!round) continue;
-      for (const m of round.matches) {
-        if (m.bye || m.forfeitLoss || !m.complete) continue;
-        if (m.p1 !== playerId && m.p2 !== playerId) continue;
-        const gf = m.goesFirst != null ? m.goesFirst : m.p1;
-        return gf === playerId ? "first" : "second";
-      }
-    }
-    return null;
-  }
-
-  function chooseGoesFirst(div, roundIndex, idA, idB) {
-    const owedSecondA = getLastFirstTurnRole(div, idA, roundIndex) === "first";
-    const owedSecondB = getLastFirstTurnRole(div, idB, roundIndex) === "first";
-    if (owedSecondA && !owedSecondB) return idB;
-    if (owedSecondB && !owedSecondA) return idA;
-    let h = 0;
-    const seed = div + idA + idB + String(roundIndex);
-    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-    return Math.abs(h) % 2 === 0 ? idA : idB;
-  }
-
   function buildRound(div, roundIndex) {
-    const players = activePlayersForRound(div, roundIndex);
+    const players = state.players[div].filter((p) => !p.withdrawn);
     const raw =
       roundIndex === 0 ? pairRandom(players) : swissPairings(div, players);
-    const divBye = getDivisionByeOutcome(div);
-    const matches = raw.map((m) => {
-      const row = {
-        board: 0,
+    return {
+      index: roundIndex,
+      matches: raw.map((m, bi) => ({
+        board: bi + 1,
         p1: m.p1,
         p2: m.p2,
         bye: m.bye,
         score1: null,
         score2: null,
         complete: !!m.bye,
-        byeSpread: null,
-        byeOutcome: null,
-        goesFirst: null
-      };
-      if (m.bye) {
-        row.byeOutcome = divBye;
-        if (divBye === "full") row.byeSpread = 50;
-        else if (divBye === "half") row.byeSpread = 25;
-        else row.byeSpread = 0;
-        row.complete = true;
-      }
-      if (!m.bye && m.p1 && m.p2) {
-        row.goesFirst = chooseGoesFirst(div, roundIndex, m.p1, m.p2);
-      }
-      return row;
-    });
-    assignBoardsKingOfCourt(div, matches);
-    return {
-      index: roundIndex,
-      matches
+        byeSpread: m.bye ? 50 : null
+      }))
     };
   }
 
@@ -1651,13 +1194,11 @@
 
   function beginTournamentCore() {
     state.started = true;
-    state.activeRoundByDiv = {};
-    state.viewRoundByDiv = {};
+    state.currentRound = 0;
+    state.viewRound = 0;
     const empty = {};
     divisionIds().forEach((d) => {
       empty[d] = [];
-      state.activeRoundByDiv[d] = 0;
-      state.viewRoundByDiv[d] = 0;
     });
     state.rounds = empty;
     for (const d of divisionIds()) {
@@ -1666,34 +1207,14 @@
     }
   }
 
-  function advanceRoundForDivisionCore(div) {
-    const ar = getActiveRound(div);
-    const next = ar + 1;
-    if (next >= getDivisionRoundCount(div)) return;
-    state.rounds[div].push(buildRound(div, next));
-    appendWithdrawnForfeitMatches(div, next);
-    state.activeRoundByDiv[div] = next;
-    state.viewRoundByDiv[div] = next;
-  }
-
-  function validateSchedulesForStart() {
+  function advanceRoundCore() {
+    const next = state.currentRound + 1;
     for (const d of divisionIds()) {
-      const active = state.players[d].filter((p) => !p.withdrawn).length;
-      const need = boardsNeededForActivePlayers(active);
-      const tc = getDivisionTableCount(d);
-      if (tc != null && tc < need) {
-        toast(
-          getDivisionName(d) +
-            " needs at least " +
-            need +
-            " tables for round 1 (you set " +
-            tc +
-            "). Use Auto tables or raise the number."
-        );
-        return false;
-      }
+      state.rounds[d].push(buildRound(d, next));
+      appendWithdrawnForfeitMatches(d, next);
     }
-    return true;
+    state.currentRound = next;
+    state.viewRound = next;
   }
 
   function startTournament() {
@@ -1703,7 +1224,6 @@
         return;
       }
     }
-    if (!validateSchedulesForStart()) return;
     beginTournamentCore();
     saveState();
     toast("Tournament started — Round 1 pairings ready.");
@@ -1712,10 +1232,8 @@
   }
 
   function currentRoundComplete(div) {
-    const ar = getActiveRound(div);
-    if (ar >= getDivisionRoundCount(div)) return true;
-    const r = state.rounds[div][ar];
-    if (!r) return true;
+    const r = state.rounds[div][state.currentRound];
+    if (!r) return false;
     return r.matches.every((m) => m.complete);
   }
 
@@ -1723,29 +1241,19 @@
     return divisionIds().every(currentRoundComplete);
   }
 
-  function divisionCanAdvance(div) {
-    if (!state.started) return false;
-    if (!currentRoundComplete(div)) return false;
-    const ar = getActiveRound(div);
-    return ar < getDivisionRoundCount(div) - 1;
-  }
-
-  function advanceRoundForSelectedDivision() {
-    const div = pairDiv;
+  function advanceRound() {
     if (!state.started) return;
-    if (!divisionIds().includes(div)) return;
-    if (!currentRoundComplete(div)) {
-      toast("Enter and lock all scores for " + getDivisionName(div) + "'s current round first.");
+    if (!allDivisionsRoundComplete()) {
+      toast("Enter and lock all scores for this round first.");
       return;
     }
-    const ar = getActiveRound(div);
-    if (ar >= getDivisionRoundCount(div) - 1) {
-      toast(getDivisionName(div) + " has no more rounds — division finished.");
+    if (state.currentRound >= getTotalRounds() - 1) {
+      toast("Final round complete.");
       return;
     }
-    advanceRoundForDivisionCore(div);
+    advanceRoundCore();
     saveState();
-    toast(getDivisionName(div) + " — round " + (getActiveRound(div) + 1) + " pairings ready.");
+    toast(`Round ${state.currentRound + 1} pairings generated.`);
     renderAll();
   }
 
@@ -1796,40 +1304,10 @@
     if (divisionDelegatesBound) return;
     divisionDelegatesBound = true;
     const map = [
-      [
-        "setup-division-toggle",
-        (id) => {
-          setupDiv = id;
-          state.ui = state.ui || {};
-          state.ui.setupDiv = id;
-        }
-      ],
-      [
-        "pair-division-toggle",
-        (id) => {
-          pairDiv = id;
-          state.ui = state.ui || {};
-          state.ui.pairDiv = id;
-        }
-      ],
-      [
-        "lb-division-toggle",
-        (id) => {
-          lbDiv = id;
-          state.ui = state.ui || {};
-          state.ui.lbDiv = id;
-        }
-      ],
-      [
-        "hist-division-toggle",
-        (id) => {
-          histDiv = id;
-          state.ui = state.ui || {};
-          state.ui.histDiv = id;
-          renderScorecardSelect();
-          renderScorecardDetail();
-        }
-      ]
+      ["setup-division-toggle", (id) => { setupDiv = id; }],
+      ["pair-division-toggle", (id) => { pairDiv = id; }],
+      ["lb-division-toggle", (id) => { lbDiv = id; }],
+      ["hist-division-toggle", (id) => { histDiv = id; renderScorecardSelect(); renderScorecardDetail(); }]
     ];
     map.forEach(([cid, setter]) => {
       const el = document.getElementById(cid);
@@ -1872,49 +1350,9 @@
   let structureEditorBound = false;
   function initStructureEditor() {
     if (structureEditorBound) return;
+    structureEditorBound = true;
     const ed = document.getElementById("divisions-editor");
-    const addDivBtn = document.getElementById("btn-add-division");
-    const nameInput = document.getElementById("event-name");
-    if (!ed || !addDivBtn || !nameInput) return;
     ed.addEventListener("change", (e) => {
-      const roundsInp = e.target.closest(".div-rounds-input");
-      if (roundsInp && !state.started) {
-        const id = roundsInp.dataset.id;
-        let n = parseInt(roundsInp.value, 10);
-        n = Math.max(1, Math.min(12, isNaN(n) ? 4 : n));
-        roundsInp.value = n;
-        if (state.divisionsMeta[id]) {
-          state.divisionsMeta[id].roundCount = n;
-          saveState();
-          updatePairingRulesBlurb();
-          renderHeaderChrome();
-        }
-        return;
-      }
-      const tablesInp = e.target.closest(".div-tables-input");
-      if (tablesInp && !state.started) {
-        const id = tablesInp.dataset.id;
-        const raw = String(tablesInp.value || "").trim();
-        if (raw === "") {
-          state.divisionsMeta[id].tableCount = null;
-        } else {
-          let t = parseInt(raw, 10);
-          t = Math.max(1, Math.min(99, isNaN(t) ? 1 : t));
-          state.divisionsMeta[id].tableCount = t;
-          tablesInp.value = t;
-        }
-        saveState();
-        return;
-      }
-      const byeSel = e.target.closest(".div-bye-outcome-select");
-      if (byeSel && state.divisionsMeta[byeSel.dataset.id]) {
-        const id = byeSel.dataset.id;
-        const v = byeSel.value;
-        state.divisionsMeta[id].byeOutcome = v === "half" || v === "none" ? v : "full";
-        saveState();
-        updatePairingRulesBlurb();
-        return;
-      }
       const inp = e.target.closest(".div-name-input");
       if (inp && !state.started) {
         const id = inp.dataset.id;
@@ -1930,25 +1368,32 @@
       const rm = e.target.closest(".btn-remove-div");
       if (rm && !state.started) removeDivision(rm.dataset.id);
     });
-    addDivBtn.addEventListener("click", () => {
+    document.getElementById("btn-add-division").addEventListener("click", () => {
       if (!state.started) addDivision();
     });
-    nameInput.addEventListener("input", (e) => {
+    document.getElementById("event-name").addEventListener("input", (e) => {
       state.eventName = e.target.value.slice(0, 120);
       renderHeaderChrome();
       saveState();
     });
-    structureEditorBound = true;
+    document.getElementById("total-rounds-input").addEventListener("change", () => {
+      if (state.started) return;
+      const n = parseInt(document.getElementById("total-rounds-input").value, 10);
+      state.totalRounds = Math.max(1, Math.min(12, isNaN(n) ? 4 : n));
+      document.getElementById("total-rounds-input").value = state.totalRounds;
+      updatePairingRulesBlurb();
+      saveState();
+    });
   }
 
   function updatePairingRulesBlurb() {
     const el = document.getElementById("pairing-rules-blurb");
     if (!el) return;
-    const hi = getMaxRoundsAcrossDivisions();
+    const tr = getTotalRounds();
     el.textContent =
-      "Round 1 is random within each division; rounds 2–" +
-      hi +
-      " are Swiss (similar records, no rematches when possible). Each round, Table 1 is the strongest matchup by standings (king of the court). Pairings show who starts vs goes second; it alternates from each player’s last completed game in that division (ties on a fixed draw). Divisions can use different round counts. Next round only advances the selected division. With an odd number of active players in a round, one bye is created; in structure you set the default (full win, half-point, or sit-out), and on the Pairings tab you can change who gets the bye before scores exist. Rebuild pairings after a late add if the current round is still clean. Withdrawals flip the field between odd and even for later rounds.";
+      "Round 1 uses random pairings; rounds 2–" +
+      tr +
+      " use Swiss (similar records, no rematches when possible). Odd field sizes receive one bye per division per round.";
   }
 
   function escapeAttr(s) {
@@ -1962,57 +1407,36 @@
   function renderDivisionsEditor() {
     initStructureEditor();
     const ed = document.getElementById("divisions-editor");
-    if (!ed) return;
     const locked = state.started;
     const ids = divisionIds();
     ed.innerHTML = ids
       .map((id, idx) => {
         const nm = escapeInputAttr(getDivisionName(id));
-        const rc = getDivisionRoundCount(id);
-        const tc = state.divisionsMeta[id].tableCount;
-        const tablesVal = tc == null || tc === "" ? "" : escapeInputAttr(String(tc));
         const rem =
           !locked && ids.length > 1
             ? `<button type="button" class="btn-ghost btn-remove-div" data-id="${escapeAttr(id)}">Remove</button>`
             : "";
-        const bo = getDivisionByeOutcome(id);
         return `<div class="division-editor-row" data-div-id="${escapeAttr(id)}">
           <label style="flex:1;min-width:160px">Division ${idx + 1}
             <input type="text" class="div-name-input" data-id="${escapeAttr(id)}" value="${nm}" ${locked ? "disabled" : ""} maxlength="80" />
-          </label>
-          <label class="div-meta-label">Rounds
-            <input type="number" class="div-rounds-input" data-id="${escapeAttr(id)}" min="1" max="12" step="1" value="${rc}" ${locked ? "disabled" : ""} title="Swiss rounds for this division only" />
-          </label>
-          <label class="div-meta-label">Tables
-            <input type="number" class="div-tables-input" data-id="${escapeAttr(id)}" min="1" max="99" step="1" value="${tablesVal}" ${locked ? "disabled" : ""} title="Leave empty for auto (one table per game). Must be at least the number of games in a round. Table 1 = top matchup." />
-          </label>
-          <label class="div-meta-label" style="flex:1;min-width:200px">Odd field → unpaired player
-            <select class="div-bye-outcome-select" data-id="${escapeAttr(id)}" title="Default for the one unpaired seat each round when player count is odd">
-              <option value="full" ${bo === "full" ? "selected" : ""}>Full win (+50)</option>
-              <option value="half" ${bo === "half" ? "selected" : ""}>Half-point bye</option>
-              <option value="none" ${bo === "none" ? "selected" : ""}>Sit-out (no standings)</option>
-            </select>
           </label>
           ${rem}
         </div>`;
       })
       .join("");
-    const evNm = document.getElementById("event-name");
-    if (evNm) {
-      evNm.value = state.eventName || "";
-      evNm.disabled = false;
-    }
-    const addDiv = document.getElementById("btn-add-division");
-    if (addDiv) addDiv.disabled = locked;
+    document.getElementById("event-name").value = state.eventName || "";
+    document.getElementById("event-name").disabled = false;
+    const tri = document.getElementById("total-rounds-input");
+    tri.value = getTotalRounds();
+    tri.disabled = locked;
+    document.getElementById("btn-add-division").disabled = locked;
     updatePairingRulesBlurb();
   }
 
   function addDivision() {
     const id = newDivisionId();
-    const templateId = divisionIds()[0];
-    const rc = templateId ? getDivisionRoundCount(templateId) : 4;
     state.divisionOrder.push(id);
-    state.divisionsMeta[id] = { id, name: "New division", roundCount: rc, tableCount: null, byeOutcome: "full" };
+    state.divisionsMeta[id] = { id, name: "New division" };
     state.players[id] = [];
     state.rounds[id] = [];
     saveState();
@@ -2028,8 +1452,6 @@
     delete state.divisionsMeta[id];
     delete state.players[id];
     delete state.rounds[id];
-    delete state.activeRoundByDiv[id];
-    delete state.viewRoundByDiv[id];
     validateActiveDivisions();
     saveState();
     renderAll();
@@ -2041,14 +1463,7 @@
     if (state.eventName && state.eventName.trim()) {
       badge.hidden = false;
       badge.textContent = state.eventName.trim();
-      if (tag)
-        tag.textContent =
-          "Up to " +
-          getMaxRoundsAcrossDivisions() +
-          " rounds · Swiss · " +
-          divisionIds().length +
-          " division" +
-          (divisionIds().length === 1 ? "" : "s");
+      if (tag) tag.textContent = getTotalRounds() + " rounds · Swiss · " + divisionIds().length + " division" + (divisionIds().length === 1 ? "" : "s");
     } else {
       badge.hidden = true;
       if (tag) tag.textContent = "Swiss pairings · Round 1 random · Built for club & rated events";
@@ -2056,6 +1471,10 @@
   }
 
   function addPlayerFromForm() {
+    if (state.started) {
+      toast("Cannot add players after the tournament has started.");
+      return;
+    }
     const name = document.getElementById("player-name").value.trim();
     const ratingRaw = document.getElementById("player-rating").value.trim();
     const rating = ratingRaw === "" ? 0 : Math.max(0, parseInt(ratingRaw, 10) || 0);
@@ -2063,74 +1482,33 @@
       toast("Enter a player name.");
       return;
     }
-    let joinedAtRound = null;
-    if (state.started) {
-      const ar = getActiveRound(setupDiv);
-      const nextPlay = ar + 1;
-      if (nextPlay >= getDivisionRoundCount(setupDiv)) {
-        toast("No more rounds in this division — cannot add a player.");
-        return;
-      }
-      joinedAtRound = nextPlay;
-      toast(
-        getDivisionName(setupDiv) +
-          ": " +
-          name +
-          " first pairs in round " +
-          (nextPlay + 1) +
-          ". If this round has no scores yet, use Rebuild pairings on the Pairings tab."
-      );
-    }
-    state.players[setupDiv].push({
-      id: uid(),
-      name,
-      rating,
-      withdrawn: false,
-      withdrawnAtRound: null,
-      joinedAtRound
-    });
+    state.players[setupDiv].push({ id: uid(), name, rating, withdrawn: false, withdrawnAtRound: null });
     document.getElementById("player-name").value = "";
     document.getElementById("player-rating").value = "";
     saveState();
     renderAll();
   }
 
-  const btnAddPlayer = document.getElementById("btn-add-player");
-  if (btnAddPlayer) btnAddPlayer.addEventListener("click", addPlayerFromForm);
-  const inpPlayerName = document.getElementById("player-name");
-  if (inpPlayerName) {
-    inpPlayerName.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        addPlayerFromForm();
-      }
-    });
-  }
+  document.getElementById("btn-add-player").addEventListener("click", addPlayerFromForm);
+  document.getElementById("player-name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addPlayerFromForm();
+    }
+  });
 
-  const btnStart = document.getElementById("btn-start");
-  if (btnStart) btnStart.addEventListener("click", startTournament);
-  const btnReset = document.getElementById("btn-reset");
-  if (btnReset) btnReset.addEventListener("click", resetAll);
+  document.getElementById("btn-start").addEventListener("click", startTournament);
+  document.getElementById("btn-reset").addEventListener("click", resetAll);
 
-  const roundSelectEl = document.getElementById("round-select");
-  if (roundSelectEl) {
-    roundSelectEl.addEventListener("change", (e) => {
-      ensureDivisionKeys();
-      const v = parseInt(e.target.value, 10);
-      state.viewRoundByDiv[pairDiv] = isNaN(v) ? 0 : v;
-      saveState();
-      renderPairings();
-    });
-  }
+  document.getElementById("round-select").addEventListener("change", (e) => {
+    state.viewRound = parseInt(e.target.value, 10);
+    saveState();
+    renderPairings();
+  });
 
-  const btnNextRound = document.getElementById("btn-next-round");
-  if (btnNextRound) btnNextRound.addEventListener("click", advanceRoundForSelectedDivision);
+  document.getElementById("btn-next-round").addEventListener("click", advanceRound);
 
-  const btnRebuildRound = document.getElementById("btn-rebuild-round");
-  if (btnRebuildRound) btnRebuildRound.addEventListener("click", rebuildCurrentRoundPairings);
-
-  const scorecardSel = document.getElementById("scorecard-player");
-  if (scorecardSel) scorecardSel.addEventListener("change", renderScorecardDetail);
+  document.getElementById("scorecard-player").addEventListener("change", renderScorecardDetail);
 
   function exportTournamentJson() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -2168,28 +1546,23 @@
     toast("Tournament imported.");
   }
 
-  const btnExport = document.getElementById("btn-export-json");
-  if (btnExport) btnExport.addEventListener("click", exportTournamentJson);
-  const btnImport = document.getElementById("btn-import-json");
-  const importFile = document.getElementById("import-file");
-  if (btnImport && importFile) {
-    btnImport.addEventListener("click", () => importFile.click());
-  }
-  if (importFile) {
-    importFile.addEventListener("change", (e) => {
-      const f = e.target.files && e.target.files[0];
-      e.target.value = "";
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = () => importTournamentJson(String(reader.result || ""));
-      reader.readAsText(f);
-    });
-  }
+  document.getElementById("btn-export-json").addEventListener("click", exportTournamentJson);
+  document.getElementById("btn-import-json").addEventListener("click", () => {
+    document.getElementById("import-file").click();
+  });
+  document.getElementById("import-file").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => importTournamentJson(String(reader.result || ""));
+    reader.readAsText(f);
+  });
 
   function applyWithdrawForfeits(div, playerId) {
-    const ar = getActiveRound(div);
+    const cr = state.currentRound;
     state.rounds[div].forEach((round, ri) => {
-      if (ri < ar) return;
+      if (ri < cr) return;
       round.matches.forEach((m) => {
         if (m.bye || m.complete) return;
         if (m.p1 === playerId) {
@@ -2210,13 +1583,11 @@
     if (!p || p.withdrawn || !state.started) return;
     if (!confirm("Withdraw " + p.name + " from the tournament?")) return;
     p.withdrawn = true;
-    p.withdrawnAtRound = getActiveRound(div);
+    p.withdrawnAtRound = state.currentRound;
     applyWithdrawForfeits(div, playerId);
-    appendWithdrawnForfeitMatches(div, getActiveRound(div));
+    appendWithdrawnForfeitMatches(div, state.currentRound);
     saveState();
-    toast(
-      "Withdrawn: opponent gets the win this round if still paired; later rounds skip them. Odd/even field changes next round — someone may get a bye or a new pairing."
-    );
+    toast("Player withdrawn and removed from future pairings");
     renderAll();
   }
 
@@ -2232,7 +1603,6 @@
 
   function renderPlayerList() {
     const list = document.getElementById("player-list");
-    if (!list) return;
     const div = setupDiv;
     const players = state.players[div] || [];
     const sumEl = document.getElementById("division-counts-summary");
@@ -2248,13 +1618,8 @@
     }
     players.forEach((p) => {
       const li = document.createElement("li");
-      const jr = p.joinedAtRound;
-      const late =
-        jr != null && jr > 0
-          ? ` <span class="player-meta">· from R${jr + 1}</span>`
-          : "";
       li.innerHTML = `
-        <span><strong>${escapeHtml(p.name)}</strong> <span class="player-meta">· rating ${p.rating || 0}</span>${late}</span>
+        <span><strong>${escapeHtml(p.name)}</strong> <span class="player-meta">· rating ${p.rating || 0}</span></span>
         <button type="button" class="btn btn-danger btn-small" ${state.started ? "disabled" : ""}>Remove</button>
       `;
       li.querySelector("button").addEventListener("click", () => removePlayer(div, p.id));
@@ -2281,11 +1646,7 @@
     const errs = [];
     const round = s.rounds[div] && s.rounds[div][ri];
     if (!round) return ["missing round"];
-    const pool = new Set(
-      s.players[div]
-        .filter((p) => !p.withdrawn && (p.joinedAtRound == null || ri >= p.joinedAtRound))
-        .map((p) => p.id)
-    );
+    const pool = new Set(s.players[div].filter((p) => !p.withdrawn).map((p) => p.id));
     const seen = new Set();
     const boards = new Set();
     for (const m of round.matches) {
@@ -2322,14 +1683,13 @@
   }
 
   function fillAllScoresForCurrentRound(s) {
+    const cr = s.currentRound;
     const ids = (s.divisionOrder || []).slice();
     for (const d of ids) {
-      const ar = s.activeRoundByDiv && s.activeRoundByDiv[d] != null ? s.activeRoundByDiv[d] : 0;
-      const r = s.rounds[d][ar];
-      if (!r) continue;
+      const r = s.rounds[d][cr];
       for (const m of r.matches) {
         if (m.bye || m.forfeitLoss) continue;
-        const t = m.board * 3 + ar * 11;
+        const t = m.board * 3 + cr * 11;
         m.score1 = 400 + t;
         m.score2 = 350 + t;
         m.complete = true;
@@ -2357,18 +1717,15 @@
       beginTournamentCore();
       for (let r = 0; r < TR; r++) {
         for (const d of divisionIds()) {
-          const ar = getActiveRound(d);
-          const e = pairingInvariants(state, d, ar);
+          const e = pairingInvariants(state, d, state.currentRound);
           if (e.length) throw new Error("24-player " + d + " before R" + (r + 1) + ": " + e.join(", "));
         }
         fillAllScoresForCurrentRound(state);
         if (!allDivisionsRoundComplete()) throw new Error("24-player: round not complete after fill");
-        const ar0 = getActiveRound(ids[0]);
-        const ar1 = getActiveRound(ids[1]);
-        const n0 = state.rounds[ids[0]][ar0].matches.filter((x) => !x.bye && !x.forfeitLoss).length;
-        const n1 = state.rounds[ids[1]][ar1].matches.filter((x) => !x.bye && !x.forfeitLoss).length;
+        const n0 = state.rounds[ids[0]][state.currentRound].matches.filter((x) => !x.bye && !x.forfeitLoss).length;
+        const n1 = state.rounds[ids[1]][state.currentRound].matches.filter((x) => !x.bye && !x.forfeitLoss).length;
         if (n0 !== 6 || n1 !== 6) throw new Error("expected 6 boards per division (12 players)");
-        if (r < TR - 1) divisionIds().forEach((d) => advanceRoundForDivisionCore(d));
+        if (r < TR - 1) advanceRoundCore();
       }
       out("PASS · 24 players (12+12) · " + TR + " rounds · pairings, boards, advancement", "pass");
 
@@ -2398,11 +1755,10 @@
         { id: uid(), name: "Gate D", rating: 2, withdrawn: false, withdrawnAtRound: null }
       );
       beginTournamentCore();
-      pairDiv = id3[0];
-      const crBefore = getActiveRound(id3[0]);
-      advanceRoundForSelectedDivision();
-      if (getActiveRound(id3[0]) !== crBefore) throw new Error("advance should not move when scores incomplete");
-      out("PASS · advance blocked until scores locked (per division)", "pass");
+      const crBefore = state.currentRound;
+      advanceRound();
+      if (state.currentRound !== crBefore) throw new Error("advance should not move when scores incomplete");
+      out("PASS · advanceRound blocked until scores locked", "pass");
 
       fillAllScoresForCurrentRound(state);
       const m0 = state.rounds[id3[0]][0].matches.find((x) => !x.bye && !x.forfeitLoss);
@@ -2419,13 +1775,12 @@
       beginTournamentCore();
       for (let r = 0; r < TR; r++) {
         for (const d of divisionIds()) {
-          const ar = getActiveRound(d);
-          const e = pairingInvariants(state, d, ar);
+          const e = pairingInvariants(state, d, state.currentRound);
           if (e.length) throw new Error("solo: " + e.join(", "));
-          const matches = state.rounds[d][ar].matches;
+          const matches = state.rounds[d][state.currentRound].matches;
           if (matches.length !== 1 || !matches[0].bye) throw new Error("solo: expected single bye");
         }
-        if (r < TR - 1) divisionIds().forEach((d) => advanceRoundForDivisionCore(d));
+        if (r < TR - 1) advanceRoundCore();
       }
       out("PASS · 2 players (1+1) · " + TR + " rounds · bye-only coverage", "pass");
 
@@ -2451,34 +1806,6 @@
       const halfWins = pids.every((pid) => Math.abs((st[pid].wins || 0) - 0.5) < 0.01);
       if (!halfWins) throw new Error("tie scores should yield 0.5 wins each");
       out("PASS · tied games · standings use half wins", "pass");
-
-      state = defaultState();
-      const id6 = divisionIds();
-      state.divisionsMeta[id6[0]].roundCount = 4;
-      state.divisionsMeta[id6[1]].roundCount = 3;
-      state.players[id6[0]].push(
-        { id: uid(), name: "Mix A1", rating: 1, withdrawn: false, withdrawnAtRound: null },
-        { id: uid(), name: "Mix A2", rating: 2, withdrawn: false, withdrawnAtRound: null }
-      );
-      state.players[id6[1]].push(
-        { id: uid(), name: "Mix B1", rating: 1, withdrawn: false, withdrawnAtRound: null },
-        { id: uid(), name: "Mix B2", rating: 2, withdrawn: false, withdrawnAtRound: null }
-      );
-      beginTournamentCore();
-      let mixGuard = 0;
-      while (mixGuard++ < 12) {
-        fillAllScoresForCurrentRound(state);
-        if (!allDivisionsRoundComplete()) throw new Error("mixed schedule: incomplete");
-        if (!divisionIds().some((d) => divisionCanAdvance(d))) break;
-        divisionIds().forEach((d) => {
-          if (divisionCanAdvance(d)) advanceRoundForDivisionCore(d);
-        });
-      }
-      if (state.rounds[id6[0]].length !== 4) throw new Error("mix: division A should have 4 stored rounds");
-      if (state.rounds[id6[1]].length !== 3) throw new Error("mix: division B should have 3 stored rounds");
-      if (getActiveRound(id6[0]) !== 3) throw new Error("mix: expected division A active index 3");
-      if (getActiveRound(id6[1]) !== 2) throw new Error("mix: expected division B active index 2");
-      out("PASS · 4R vs 3R divisions · independent advance OK", "pass");
 
       out("All automated design checks passed.", "pass");
     } catch (err) {
@@ -2509,71 +1836,42 @@
 
   function renderTourneyStatus() {
     const el = document.getElementById("tourney-status");
-    if (!el) return;
     if (!state.started) {
       el.textContent = "Tournament not started. Add players and press Start tournament.";
       return;
     }
-    const maxR = getMaxRoundsAcrossDivisions();
-    const sched = divisionIds()
-      .map(
-        (d) =>
-          getDivisionName(d) +
-          " " +
-          getDivisionRoundCount(d) +
-          "R (now R" +
-          (getActiveRound(d) + 1) +
-          ")"
-      )
-      .join(" · ");
-    const vd = pairDiv;
-    el.textContent = `In progress — ${sched}. Pairings tab: viewing ${getDivisionName(
-      vd
-    )} round ${getViewRoundForDiv(vd) + 1} (longest schedule ${maxR} rounds). Next round advances the selected division only.`;
+    el.textContent = `In progress — viewing round ${(state.viewRound != null ? state.viewRound : state.currentRound) + 1} of ${getTotalRounds()} (active round: ${state.currentRound + 1}).`;
   }
 
   function syncRoundSelect() {
     const sel = document.getElementById("round-select");
-    if (!sel) return;
-    const div = pairDiv;
     sel.innerHTML = "";
     if (!state.started) {
       sel.disabled = true;
       return;
     }
-    const len = state.rounds[div] ? state.rounds[div].length : 0;
-    if (len === 0) {
-      sel.disabled = true;
-      return;
-    }
     sel.disabled = false;
-    const maxR = len - 1;
+    const fid = divisionIds()[0];
+    const maxR = fid && state.rounds[fid] ? state.rounds[fid].length - 1 : 0;
     for (let i = 0; i <= maxR; i++) {
       const opt = document.createElement("option");
       opt.value = String(i);
       opt.textContent = `Round ${i + 1}`;
       sel.appendChild(opt);
     }
-    const vr = getViewRoundForDiv(div);
-    sel.value = String(vr);
-    state.viewRoundByDiv[div] = parseInt(sel.value, 10);
+    const vr = state.viewRound != null ? state.viewRound : state.currentRound;
+    sel.value = String(Math.min(vr, maxR));
+    state.viewRound = parseInt(sel.value, 10);
   }
 
   function renderPairings() {
     const div = pairDiv;
     const container = document.getElementById("pairings-container");
     const label = document.getElementById("pairings-round-label");
-    const nextBtn = document.getElementById("btn-next-round");
-    if (!container || !label || !nextBtn) return;
-    nextBtn.disabled = !state.started || !divisionCanAdvance(div);
-    const rebuildBtn = document.getElementById("btn-rebuild-round");
-    if (rebuildBtn) {
-      const canRe = state.started && canRebuildCurrentRound(div);
-      rebuildBtn.disabled = !canRe;
-      rebuildBtn.title = canRe
-        ? "Regenerate this round from the current roster (late adds, drops) — only while no real match has scores or is locked."
-        : "Available only on the active round, and only when every real game has no scores and is not locked.";
-    }
+    document.getElementById("btn-next-round").disabled =
+      !state.started ||
+      state.currentRound >= getTotalRounds() - 1 ||
+      !allDivisionsRoundComplete();
 
     if (!state.started) {
       container.innerHTML = '<p class="empty-state">Start the tournament from Setup to see pairings.</p>';
@@ -2582,48 +1880,31 @@
     }
 
     syncRoundSelect();
-    const ri = getViewRoundForDiv(div);
-    const divRounds = state.rounds[div];
-    const round = divRounds && divRounds[ri];
+    const ri = state.viewRound != null ? state.viewRound : state.currentRound;
+    const round = state.rounds[div][ri];
     if (!round) {
-      container.innerHTML =
-        '<p class="empty-state">This division has no round ' +
-        (ri + 1) +
-        " — it is scheduled for " +
-        getDivisionRoundCount(div) +
-        " rounds only. Switch division or pick another round.</p>";
-      label.textContent = "No pairings this round";
+      container.innerHTML = '<p class="empty-state">No pairings.</p>';
       return;
     }
 
     const stats = computeStats(div);
-    const ar = getActiveRound(div);
-    const isActiveRoundView = ri === ar;
-    const divFullyDone = currentRoundComplete(div) && !divisionCanAdvance(div);
-    label.textContent = isActiveRoundView && !currentRoundComplete(div)
-      ? "Scores required (this division)"
-      : isActiveRoundView && divisionCanAdvance(div)
-        ? "Round complete — Next round (this division)"
-        : isActiveRoundView && divFullyDone
-          ? "Division finished"
-          : ri < ar
-            ? "Completed round"
-            : "Viewing other round";
+    const isActiveRoundView = ri === state.currentRound;
+    label.textContent =
+      isActiveRoundView && !currentRoundComplete(div)
+        ? "Scores required"
+        : ri < state.currentRound
+          ? "Completed round"
+          : "Round complete";
 
     container.innerHTML = "";
-    const sortedMatches = round.matches.slice().sort((a, b) => (a.board || 0) - (b.board || 0));
-    sortedMatches.forEach((m) => {
-      const kingBadge =
-        !m.bye && !m.forfeitLoss && m.board === 1
-          ? '<span class="king-table-badge" title="Top matchup by Swiss standings">King table</span>'
-          : "";
+    round.matches.forEach((m) => {
       if (m.forfeitLoss) {
         const wrap = document.createElement("div");
         wrap.className = "match complete";
         const loser = m.loserId ? getPlayer(div, m.loserId) : null;
         const header = document.createElement("div");
         header.className = "match-header";
-        header.innerHTML = `<span class="board-num">Table ${m.board}</span>`;
+        header.innerHTML = `<span class="board-num">Board ${m.board}</span>`;
         const note = document.createElement("p");
         note.className = "bye-tag";
         note.style.margin = "0";
@@ -2646,71 +1927,15 @@
 
       const header = document.createElement("div");
       header.className = "match-header";
-      header.innerHTML = `<span class="board-num">Table ${m.board}${kingBadge}</span>`;
+      header.innerHTML = `<span class="board-num">Board ${m.board}</span>`;
 
       if (m.bye) {
-        const bo = m.byeOutcome || getDivisionByeOutcome(div);
-        const byeEditable = isActiveRoundView && canRebuildCurrentRound(div);
-        const nm = p1 ? escapeHtml(p1.name) : "";
-        const wd = p1 && p1.withdrawn ? ' <span class="wd-tag">(WD)</span>' : "";
-        header.innerHTML += `<span class="bye-tag">Bye — ${nm}${wd} · ${byeOutcomeSummary(bo)}</span>`;
+        header.innerHTML += `<span class="bye-tag">Bye — ${p1 ? escapeHtml(p1.name) : ""}${p1 && p1.withdrawn ? ' <span class="wd-tag">(WD)</span>' : ""} receives full win (+50 spread)</span>`;
         wrap.appendChild(header);
         const byeNote = document.createElement("p");
         byeNote.className = "player-meta";
-        byeNote.textContent =
-          bo === "none"
-            ? "No score entry. Does not add a win/loss to standings (TD choice)."
-            : "No score entry; standings updated from bye type above.";
+        byeNote.textContent = "Bye is automatic; no score entry.";
         wrap.appendChild(byeNote);
-        if (byeEditable) {
-          const ctr = document.createElement("div");
-          ctr.className = "bye-controls";
-          const labP = document.createElement("label");
-          labP.innerHTML = "<span>Who gets the bye</span>";
-          const selP = document.createElement("select");
-          selP.className = "bye-player-select";
-          selP.title = "Chooses the unpaired seat; the player you replace is swapped into that game.";
-          activePlayersForRound(div, ri).forEach((pl) => {
-            const o = document.createElement("option");
-            o.value = pl.id;
-            o.textContent = pl.name + (pl.withdrawn ? " (WD)" : "");
-            if (pl.id === m.p1) o.selected = true;
-            selP.appendChild(o);
-          });
-          selP.addEventListener("change", function () {
-            const nid = selP.value;
-            if (swapByeRecipient(div, ri, m, nid)) {
-              saveState();
-              renderPairings();
-            } else {
-              selP.value = m.p1 || "";
-              toast("Could not give the bye to that player (they must be in a normal pairing to swap).");
-            }
-          });
-          labP.appendChild(selP);
-          ctr.appendChild(labP);
-          const labO = document.createElement("label");
-          labO.innerHTML = "<span>Bye type (this round)</span>";
-          const selO = document.createElement("select");
-          selO.className = "bye-outcome-select";
-          [["full", "Full win (+50)"], ["half", "Half-point (+25)"], ["none", "Sit-out"]].forEach(([val, label]) => {
-            const o = document.createElement("option");
-            o.value = val;
-            o.textContent = label;
-            if (val === bo) o.selected = true;
-            selO.appendChild(o);
-          });
-          selO.addEventListener("change", function () {
-            const v = selO.value;
-            m.byeOutcome = v === "half" || v === "none" ? v : "full";
-            syncByeMatchStatsFields(div, m);
-            saveState();
-            renderPairings();
-          });
-          labO.appendChild(selO);
-          ctr.appendChild(labO);
-          wrap.appendChild(ctr);
-        }
         container.appendChild(wrap);
         return;
       }
@@ -2743,13 +1968,6 @@
         rec.className = "record";
         rec.textContent = recordString(st);
         cell.appendChild(rec);
-        const gfId = m.goesFirst != null ? m.goesFirst : m.p1;
-        const turnEl = document.createElement("div");
-        turnEl.className = "turn-call" + (pl.id === gfId ? "" : " second");
-        turnEl.textContent = pl.id === gfId ? "Starts game" : "Goes second";
-        turnEl.title =
-          "Alternates each round: whoever started last game in this division should go second this round when possible. Ties use a fixed draw.";
-        cell.appendChild(turnEl);
         return cell;
       }
 
@@ -2782,19 +2000,6 @@
       inp2.placeholder = "—";
       inp2.value = m.score2 != null ? m.score2 : "";
       inp2.disabled = m.complete;
-
-      function persistScoresFromInputs() {
-        if (m.complete) return;
-        const raw1 = inp1.value.trim();
-        const raw2 = inp2.value.trim();
-        const v1 = raw1 === "" ? null : parseInt(raw1, 10);
-        const v2 = raw2 === "" ? null : parseInt(raw2, 10);
-        m.score1 = raw1 === "" || isNaN(v1) ? null : v1;
-        m.score2 = raw2 === "" || isNaN(v2) ? null : v2;
-        debouncedSaveState();
-      }
-      inp1.addEventListener("input", persistScoresFromInputs);
-      inp2.addEventListener("input", persistScoresFromInputs);
 
       const lockBtn = document.createElement("button");
       lockBtn.type = "button";
@@ -2847,21 +2052,6 @@
       scoreRow.appendChild(actions);
 
       wrap.appendChild(scoreRow);
-      const orderHint = document.createElement("p");
-      orderHint.className = "player-meta";
-      orderHint.style.margin = "0.65rem 0 0";
-      orderHint.style.textAlign = "center";
-      orderHint.style.fontSize = "0.76rem";
-      const gff = m.goesFirst != null ? m.goesFirst : m.p1;
-      const stPl = gff === m.p1 ? p1 : p2;
-      orderHint.textContent =
-        "Scores: left = " +
-        (p1 ? p1.name : "?") +
-        ", right = " +
-        (p2 ? p2.name : "?") +
-        ". " +
-        (stPl ? stPl.name + " opens the game." : "");
-      wrap.appendChild(orderHint);
       container.appendChild(wrap);
     });
   }
@@ -2884,10 +2074,8 @@
 
   function renderLeaderboard() {
     const container = document.getElementById("leaderboard-container");
-    if (!container) return;
     const div = lbDiv;
-    const roster = state.players[div];
-    if (!roster || roster.length === 0) {
+    if (state.players[div].length === 0) {
       container.innerHTML = '<p class="empty-state">No players in this division.</p>';
       return;
     }
@@ -2920,42 +2108,27 @@
 
   function renderHistoryRounds() {
     const container = document.getElementById("history-rounds");
-    if (!container) return;
     const div = histDiv;
-    const divRounds = state.rounds[div];
-    if (!state.started || !divRounds || divRounds.length === 0) {
+    if (!state.started || state.rounds[div].length === 0) {
       container.innerHTML = '<p class="empty-state">No rounds yet.</p>';
       return;
     }
     let html = "";
-    divRounds.forEach((round, ri) => {
+    state.rounds[div].forEach((round, ri) => {
       html += `<div class="history-round"><h3>Round ${ri + 1}</h3>`;
-      round.matches
-        .slice()
-        .sort((a, b) => (a.board || 0) - (b.board || 0))
-        .forEach((m) => {
+      round.matches.forEach((m) => {
         if (m.forfeitLoss) {
           const loser = m.loserId ? getPlayer(div, m.loserId) : null;
-          html += `<div class="scorecard"><strong>Table ${m.board}</strong> — Forfeit loss: ${formatHistoryPlayer(div, loser)} (0–50)</div>`;
+          html += `<div class="scorecard"><strong>Board ${m.board}</strong> — Forfeit loss: ${formatHistoryPlayer(div, loser)} (0–50)</div>`;
           return;
         }
         const p1 = m.p1 ? getPlayer(div, m.p1) : null;
         const p2 = m.p2 ? getPlayer(div, m.p2) : null;
         if (m.bye) {
-          const bo = m.byeOutcome || getDivisionByeOutcome(div);
-          const frag =
-            bo === "half"
-              ? "half-point bye (+25 spread)"
-              : bo === "none"
-                ? "sit-out (no standings)"
-                : "bye — full win (+50 spread)";
-          html += `<div class="scorecard"><strong>Table ${m.board}</strong> — ${formatHistoryPlayer(div, p1)}: ${frag}</div>`;
+          html += `<div class="scorecard"><strong>Board ${m.board}</strong> — Bye: ${formatHistoryPlayer(div, p1)} (+50 spread)</div>`;
           return;
         }
         let result = "Pending";
-        const gf0 = m.goesFirst != null ? m.goesFirst : m.p1;
-        const starter = gf0 === m.p1 ? p1 : p2;
-        const startFrag = starter ? " · " + escapeHtml(starter.name) + " started" : "";
         if (m.complete && m.score1 != null && m.score2 != null) {
           if (m.score1 > m.score2) {
             result = `${formatHistoryPlayer(div, p1)} def. ${formatHistoryPlayer(div, p2)} ${m.score1}-${m.score2}`;
@@ -2965,8 +2138,7 @@
             result = `Tie ${formatHistoryPlayer(div, p1)} vs ${formatHistoryPlayer(div, p2)} ${m.score1}-${m.score2}`;
           }
         }
-        html +=
-          `<div class="scorecard"><strong>Table ${m.board}</strong><div class="scorecard-grid">${result}${startFrag}</div></div>`;
+        html += `<div class="scorecard"><strong>Board ${m.board}</strong><div class="scorecard-grid">${result}</div></div>`;
       });
       html += "</div>";
     });
@@ -3006,14 +2178,7 @@
           continue;
         }
         if (m.bye && m.p1 === pid) {
-          const bo = m.byeOutcome || getDivisionByeOutcome(div);
-          const line =
-            bo === "half"
-              ? `Round ${ri + 1}: Half-point bye (+25 spread)`
-              : bo === "none"
-                ? `Round ${ri + 1}: Sit-out (no standings change)`
-                : `Round ${ri + 1}: Bye (W, +50 spread)`;
-          lines.push(line);
+          lines.push(`Round ${ri + 1}: Bye (W, +50 spread)`);
           continue;
         }
         if (m.p1 === pid || m.p2 === pid) {
@@ -3021,9 +2186,7 @@
           const opp = getPlayer(div, oppId);
           const oppNm = opp ? opp.name + (opp.withdrawn ? " (WD)" : "") : "?";
           if (!m.complete || m.score1 == null) {
-            const gf2 = m.goesFirst != null ? m.goesFirst : m.p1;
-            const ord = gf2 === pid ? "you start" : "opp starts";
-            lines.push(`Round ${ri + 1} vs ${oppNm} — pending (${ord})`);
+            lines.push(`Round ${ri + 1} vs ${oppNm} — pending`);
             continue;
           }
           const myScore = m.p1 === pid ? m.score1 : m.score2;
@@ -3031,10 +2194,8 @@
           let res = "Tie";
           if (myScore > opScore) res = "Win";
           else if (opScore > myScore) res = "Loss";
-          const gf1 = m.goesFirst != null ? m.goesFirst : m.p1;
-          const orderNote = gf1 === pid ? "; you started" : "; opponent started";
           lines.push(
-            `Round ${ri + 1} vs ${oppNm} — ${myScore}-${opScore} (${res}, spread ${myScore - opScore > 0 ? "+" : ""}${myScore - opScore}${orderNote})`
+            `Round ${ri + 1} vs ${oppNm} — ${myScore}-${opScore} (${res}, spread ${myScore - opScore > 0 ? "+" : ""}${myScore - opScore})`
           );
         }
       }
@@ -3047,15 +2208,11 @@
 
   function renderAll() {
     ensureDivisionKeys();
-    clampDivisionScheduleToData();
     validateActiveDivisions();
     renderHeaderChrome();
     renderDivisionToggles();
     bindDivisionDelegatesOnce();
-    initStructureEditor();
-    const panelSetup = document.getElementById("panel-setup");
-    if (panelSetup && panelSetup.classList.contains("active")) renderDivisionsEditor();
-    else updatePairingRulesBlurb();
+    if (document.getElementById("panel-setup").classList.contains("active")) renderDivisionsEditor();
     renderPlayerList();
     renderTourneyStatus();
     renderPairings();
@@ -3066,36 +2223,9 @@
     saveState();
   }
 
-  const runTestsBtn = document.getElementById("btn-run-tests");
-  if (runTestsBtn) runTestsBtn.addEventListener("click", () => runDesignTests(false));
+  document.getElementById("btn-run-tests").addEventListener("click", () => runDesignTests(false));
 
-  initStructureEditor();
   renderAll();
-
-  (function hydrateFromIndexedDBIfNewer() {
-    if (!window.indexedDB) return;
-    idbGetRaw()
-      .then(function (raw) {
-        if (typeof raw !== "string" || raw.length < 2) return;
-        let parsed;
-        try {
-          parsed = JSON.parse(raw);
-        } catch (e) {
-          return;
-        }
-        normalizeImportedState(parsed);
-        const idbTs = Number(parsed.savedAt) || 0;
-        const locTs = Number(state.savedAt) || 0;
-        if (idbTs > locTs) {
-          state = parsed;
-          ensureDivisionKeys();
-          clampDivisionScheduleToData();
-          hydrateUiPrefs();
-          renderAll();
-        }
-      })
-      .catch(function () {});
-  })();
 
   if (/\bautotest=1\b/.test(location.search)) {
     requestAnimationFrame(() => runDesignTests(true));
