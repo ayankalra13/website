@@ -951,7 +951,7 @@
     <section id="panel-setup" class="panel active" role="tabpanel">
       <div class="card">
         <h2>Tournament structure</h2>
-        <p class="player-meta" style="margin-top:-0.5rem;margin-bottom:1rem">Define divisions and schedule before play. Each division can use a different number of rounds and a different table count. Locked after you start the event.</p>
+        <p class="player-meta" style="margin-top:-0.5rem;margin-bottom:1rem">Define divisions before play (locked after start). Use <strong>1st table #</strong> so each division matches real room numbers (e.g. Open = tables 1–6, Division B = 7–12).</p>
         <div class="config-grid">
           <label>Event name (optional)
             <input type="text" id="event-name" placeholder="e.g. Regional Championship" maxlength="120" autocomplete="off" />
@@ -1172,8 +1172,8 @@
       totalRounds: 4,
       divisionOrder: [a, b],
       divisionsMeta: {
-        [a]: { id: a, name: "Open", roundCount: 4, tableCount: null, byeOutcome: "full" },
-        [b]: { id: b, name: "Division B", roundCount: 4, tableCount: null, byeOutcome: "full" }
+        [a]: { id: a, name: "Open", roundCount: 4, tableCount: null, tableStart: 1, byeOutcome: "full" },
+        [b]: { id: b, name: "Division B", roundCount: 4, tableCount: null, tableStart: 1, byeOutcome: "full" }
       },
       players: { [a]: [], [b]: [] },
       rounds: { [a]: [], [b]: [] },
@@ -1251,6 +1251,28 @@
     const t = parseInt(m.tableCount, 10);
     if (isNaN(t) || t < 1) return null;
     return Math.min(99, t);
+  }
+
+  /** Physical table # for the room: internal board 1 → tableStart, board 2 → tableStart+1, … */
+  function getDivisionTableStart(div) {
+    ensureDivisionKeys();
+    const m = state.divisionsMeta[div];
+    if (!m || m.tableStart == null || m.tableStart === "") return 1;
+    let s = parseInt(m.tableStart, 10);
+    if (isNaN(s) || s < 1) s = 1;
+    return Math.min(99, s);
+  }
+
+  function physicalTableNumber(div, internalBoard) {
+    if (internalBoard == null || internalBoard === "") return null;
+    const b = parseInt(internalBoard, 10);
+    if (isNaN(b) || b < 1) return null;
+    return getDivisionTableStart(div) + (b - 1);
+  }
+
+  function physicalTableLabel(div, internalBoard) {
+    const n = physicalTableNumber(div, internalBoard);
+    return n == null ? "—" : String(n);
   }
 
   function boardsNeededForActivePlayers(nActive) {
@@ -1341,10 +1363,16 @@
     if (!state.activeRoundByDiv || typeof state.activeRoundByDiv !== "object") state.activeRoundByDiv = {};
     if (!state.viewRoundByDiv || typeof state.viewRoundByDiv !== "object") state.viewRoundByDiv = {};
     divisionIds().forEach((id) => {
-      if (!state.divisionsMeta[id]) state.divisionsMeta[id] = { id, name: id, roundCount: 4, tableCount: null, byeOutcome: "full" };
+      if (!state.divisionsMeta[id])
+        state.divisionsMeta[id] = { id, name: id, roundCount: 4, tableCount: null, tableStart: 1, byeOutcome: "full" };
       const meta = state.divisionsMeta[id];
       if (meta.roundCount == null) meta.roundCount = Math.max(1, Math.min(12, parseInt(state.totalRounds, 10) || 4));
       if (meta.tableCount === undefined) meta.tableCount = null;
+      if (meta.tableStart == null || meta.tableStart === "") meta.tableStart = 1;
+      else {
+        let ts = parseInt(meta.tableStart, 10);
+        meta.tableStart = Math.max(1, Math.min(99, isNaN(ts) ? 1 : ts));
+      }
       if (meta.byeOutcome !== "half" && meta.byeOutcome !== "none") meta.byeOutcome = "full";
       if (!Array.isArray(state.players[id])) state.players[id] = [];
       if (!Array.isArray(state.rounds[id])) state.rounds[id] = [];
@@ -1411,6 +1439,11 @@
         dm.roundCount = Math.max(1, Math.min(12, parseInt(s.totalRounds, 10) || 4));
       else dm.roundCount = Math.max(1, Math.min(12, parseInt(dm.roundCount, 10) || 4));
       if (dm.tableCount === undefined) dm.tableCount = null;
+      if (dm.tableStart == null || dm.tableStart === "") dm.tableStart = 1;
+      else {
+        let ts = parseInt(dm.tableStart, 10);
+        dm.tableStart = Math.max(1, Math.min(99, isNaN(ts) ? 1 : ts));
+      }
       if (dm.byeOutcome !== "half" && dm.byeOutcome !== "none") dm.byeOutcome = "full";
       if (!Array.isArray(s.players[id])) s.players[id] = [];
       if (!Array.isArray(s.rounds[id])) s.rounds[id] = [];
@@ -1717,13 +1750,16 @@
     });
     const n = decorated.length;
     const cap = getDivisionTableCount(div);
+    const t0 = getDivisionTableStart(div);
     if (cap != null && cap < n) {
       toast(
         getDivisionName(div) +
           ": this round has " +
           n +
-          " games — using table numbers 1–" +
-          n +
+          " games — labeling tables " +
+          t0 +
+          "–" +
+          (t0 + n - 1) +
           ". Set Tables to at least " +
           n +
           " if that matches your room layout."
@@ -2075,6 +2111,17 @@
         saveState();
         return;
       }
+      const tableStartInp = e.target.closest(".div-table-start-input");
+      if (tableStartInp && state.divisionsMeta[tableStartInp.dataset.id]) {
+        const id = tableStartInp.dataset.id;
+        let s = parseInt(tableStartInp.value, 10);
+        s = Math.max(1, Math.min(99, isNaN(s) ? 1 : s));
+        tableStartInp.value = s;
+        state.divisionsMeta[id].tableStart = s;
+        saveState();
+        renderAll();
+        return;
+      }
       const byeSel = e.target.closest(".div-bye-outcome-select");
       if (byeSel && state.divisionsMeta[byeSel.dataset.id]) {
         const id = byeSel.dataset.id;
@@ -2140,6 +2187,7 @@
         const rc = getDivisionRoundCount(id);
         const tc = state.divisionsMeta[id].tableCount;
         const tablesVal = tc == null || tc === "" ? "" : escapeInputAttr(String(tc));
+        const tStart = getDivisionTableStart(id);
         const rem =
           !locked && ids.length > 1
             ? `<button type="button" class="btn-ghost btn-remove-div" data-id="${escapeAttr(id)}">Remove</button>`
@@ -2153,7 +2201,10 @@
             <input type="number" class="div-rounds-input" data-id="${escapeAttr(id)}" min="1" max="12" step="1" value="${rc}" ${locked ? "disabled" : ""} title="Swiss rounds for this division only" />
           </label>
           <label class="div-meta-label">Tables
-            <input type="number" class="div-tables-input" data-id="${escapeAttr(id)}" min="1" max="99" step="1" value="${tablesVal}" ${locked ? "disabled" : ""} title="Leave empty for auto (one table per game). Must be at least the number of games in a round. Table 1 = top matchup." />
+            <input type="number" class="div-tables-input" data-id="${escapeAttr(id)}" min="1" max="99" step="1" value="${tablesVal}" ${locked ? "disabled" : ""} title="Leave empty for auto. Minimum = games per round. Labels use “1st table #” below (king table = that number)." />
+          </label>
+          <label class="div-meta-label">1st table #
+            <input type="number" class="div-table-start-input" data-id="${escapeAttr(id)}" min="1" max="99" step="1" value="${tStart}" title="Physical table number for this division’s strongest matchup (internal board 1). Next game uses +1, e.g. 7 here with 6 games → tables 7–12." />
           </label>
           <label class="div-meta-label" style="flex:1;min-width:200px">Odd field → unpaired player
             <select class="div-bye-outcome-select" data-id="${escapeAttr(id)}" title="Default for the one unpaired seat each round when player count is odd">
@@ -2181,7 +2232,7 @@
     const templateId = divisionIds()[0];
     const rc = templateId ? getDivisionRoundCount(templateId) : 4;
     state.divisionOrder.push(id);
-    state.divisionsMeta[id] = { id, name: "New division", roundCount: rc, tableCount: null, byeOutcome: "full" };
+    state.divisionsMeta[id] = { id, name: "New division", roundCount: rc, tableCount: null, tableStart: 1, byeOutcome: "full" };
     state.players[id] = [];
     state.rounds[id] = [];
     saveState();
@@ -2792,7 +2843,7 @@
         const loser = m.loserId ? getPlayer(div, m.loserId) : null;
         const header = document.createElement("div");
         header.className = "match-header";
-        header.innerHTML = `<span class="board-num">Table ${m.board}</span>`;
+        header.innerHTML = `<span class="board-num">Table ${physicalTableLabel(div, m.board)}</span>`;
         const note = document.createElement("p");
         note.className = "bye-tag";
         note.style.margin = "0";
@@ -2815,7 +2866,7 @@
 
       const header = document.createElement("div");
       header.className = "match-header";
-      header.innerHTML = `<span class="board-num">Table ${m.board}${kingBadge}</span>`;
+      header.innerHTML = `<span class="board-num">Table ${physicalTableLabel(div, m.board)}${kingBadge}</span>`;
 
       if (m.bye) {
         const bo = m.byeOutcome || getDivisionByeOutcome(div);
@@ -3118,7 +3169,7 @@
         .forEach((m) => {
         if (m.forfeitLoss) {
           const loser = m.loserId ? getPlayer(div, m.loserId) : null;
-          html += `<div class="scorecard"><strong>Table ${m.board}</strong> — Forfeit loss: ${formatHistoryPlayer(div, loser)} (0–50)</div>`;
+          html += `<div class="scorecard"><strong>Table ${physicalTableLabel(div, m.board)}</strong> — Forfeit loss: ${formatHistoryPlayer(div, loser)} (0–50)</div>`;
           return;
         }
         const p1 = m.p1 ? getPlayer(div, m.p1) : null;
@@ -3131,7 +3182,7 @@
               : bo === "none"
                 ? "sit-out (no standings)"
                 : "bye — full win (+50 spread)";
-          html += `<div class="scorecard"><strong>Table ${m.board}</strong> — ${formatHistoryPlayer(div, p1)}: ${frag}</div>`;
+          html += `<div class="scorecard"><strong>Table ${physicalTableLabel(div, m.board)}</strong> — ${formatHistoryPlayer(div, p1)}: ${frag}</div>`;
           return;
         }
         let result = "Pending";
@@ -3148,7 +3199,7 @@
           }
         }
         html +=
-          `<div class="scorecard"><strong>Table ${m.board}</strong><div class="scorecard-grid">${result}${startFrag}</div></div>`;
+          `<div class="scorecard"><strong>Table ${physicalTableLabel(div, m.board)}</strong><div class="scorecard-grid">${result}${startFrag}</div></div>`;
       });
       html += "</div>";
     });
@@ -3269,7 +3320,7 @@
           const ln = loser ? escapeHtml(loser.name) : "?";
           html +=
             '<div class="arena-line arena-line-forfeit"><span class="arena-tn">T' +
-            (m.board || "—") +
+            physicalTableLabel(d, m.board) +
             '</span><span class="arena-p">Forfeit — ' +
             ln +
             " (WD)</span></div>";
@@ -3282,7 +3333,9 @@
           const sub =
             bo === "half" ? "Half bye" : bo === "none" ? "Sit-out" : "Full bye (+50)";
           html +=
-            '<div class="arena-line arena-line-bye"><span class="arena-tn">Bye</span><span class="arena-p">' +
+            '<div class="arena-line arena-line-bye"><span class="arena-tn">T' +
+            physicalTableLabel(d, m.board) +
+            '</span><span class="arena-p">Bye — ' +
             pn +
             " — " +
             escapeHtml(sub) +
@@ -3299,7 +3352,7 @@
           '<div class="arena-line' +
           rowClass +
           '"><span class="arena-tn">T' +
-          (m.board || "—") +
+          physicalTableLabel(d, m.board) +
           '</span><span class="arena-p">' +
           n1 +
           '<span class="arena-vs">vs</span>' +
